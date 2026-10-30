@@ -1,89 +1,155 @@
-# GeoNetPorts — Julia port of GeoNet's core numeric kernels
+# GeoNetPorts — Julia ports of GeoNet's core numeric functionality
 
-Self-contained Julia subproject porting the in-repo numeric core of the
-Python GeoNet pipeline. It never imports the Python package; equivalence is
-established against committed goldens produced by the original kernels.
+A self-contained Julia subproject that ports selected numeric kernels from
+the Python GeoNet pipeline. It reads plain arrays / `.npy` fixtures and never
+imports the Python modules. One submodule per Python stage, mirroring the
+`pygeonet_*` module names.
 
-SPDX-License-Identifier: GPL-3.0-or-later (matches the repository license).
+## What is ported
 
-## Scope
+### `FastMarching` — hand-rolled eikonal (fast marching) solver
 
-Ported here (stage references are the Python pipeline stages):
+`src/FastMarching.jl` implements the scikit-fmm travel-time solve that the
+GeoNet pipeline delegates to (`pygeonet_fast_marching.py` →
+`skfmm.travel_time`). It is a close transcription of skfmm's C++ marcher
+(`base_marcher.{h,cpp}`, `distance_marcher.cpp`, `travel_time_marcher.{h,cpp}`,
+`heap.{h,cpp}`), preserving:
 
-| Julia module | Python source | Gate |
-|---|---|---|
-| `NonlinearFilter` — `simple_gaussian_smoothing`, `anisodiff` (both conductance options), `lambda_nonlinear_filter` | `pygeonet_nonlinear_filter.py` | bit-exact; smoothing convolution <=1e-6 relative |
-| `SlopeCurvature` — `compute_dem_slope`, `compute_dem_curvature` (geometric + laplacian) and the curvature mean/std | `pygeonet_slope_curvature.py` | bit-exact |
-| `StartPoints` — `fast_marching_start_point_identification` (Numba `prange` kernel), `fmm_list_creation` | `pygeonet_fast_marching.py` | bit-exact, oracle-checked, thread-schedule independent |
-| `NumPyCompat` — numpy pairwise summation, `np.gradient` scheme, `nanmean`/`nanstd`, scipy `mquantiles` (alphap=betap=0.4) | numpy/scipy internals | bit-exact on committed fixtures |
+- zero-contour initialization: `phi == 0` cells frozen at 0; straddling cells
+  get the per-dimension interpolated crossing distance combined as
+  `sqrt(1/Σ 1/dᵢ²)`, converted to time via `|distance / speed|`;
+- the zero-speed mask rule (`speed < double-epsilon → wall`) and the
+  maxDouble → NaN mapping on output (skfmm's masked cells);
+- order-1 (first-order) and order-2 (second-order, the skfmm default)
+  point updates, including the negative-discriminant retry that drops one
+  dimension at a time and keeps the smallest reduced solution;
+- the exact heap mechanics (indexed binary min-heap with back pointers, strict
+  `<` comparisons, skfmm's set/pop sift order) and the batch freezing of
+  exact-tie minima, so tie resolution and therefore marching order match;
+- scalar or per-axis grid spacing (`dx::Real` or `dx::NTuple{2,Real}`).
 
-Consciously excluded (unchanged from the port spec): the scikit-fmm
-eikonal solve, GRASS flow accumulation / basins / outlets, GeoTIFF and
-shapefile I/O, plotting and config plumbing. The module list under
-`src/GeoNetPorts.jl` is the extension point — the standalone fast-marching
-solver lands beside these as another include without touching existing
-kernels.
-
-## Layout
-
+```julia
+using GeoNetPorts
+t = travel_time(phi, speed, 0.01; order = 2)          # skfmm.travel_time analog
+t = travel_time(phi, speed, (2.0, 1.0); order = 2)    # anisotropic spacing
 ```
-julia/
-├── Project.toml            # package manifest; test deps are extras (NPZ, Test, SHA)
-├── src/                    # GeoNetPorts + one module per Python stage
-├── test/runtests.jl        # equivalence suite (the gates above)
-├── test/goldens/           # committed .npy fixtures + manifest.json (sha256)
-└── tools/generate_goldens.py
+
+Errors mirror skfmm's: `ArgumentError` for shape/spacing/order problems,
+`FastMarchingError("the array phi contains no zero contour …")` for the
+"no zero contour" case, and `FastMarchingError("Unreachable voxel")` for
+skfmm's unreachable-voxel runtime error.
+
+### `NonlinearFilter` — stage-1 Perona–Malik chain
+
+`src/nonlinear_filter.jl` ports `simple_gaussian_smoothing`, `anisodiff`
+(both conductance options), and `lambda_nonlinear_filter` from
+`pygeonet_nonlinear_filter.py`: the nan-mean padding corner recipe,
+the `deltaS`/`deltaE` zero last-row/column convention, float32 working
+precision, and the 90th-quantile slope threshold through the
+scipy-compatible quantile shim below.
+
+### `SlopeCurvature` — stage-2 slope and curvature
+
+`src/slope_curvature.jl` ports `compute_dem_slope` and
+`compute_dem_curvature` (geometric and laplacian variants), reproducing
+`np.gradient`'s central/one-sided scheme and the unit-gradient
+normalization; the curvature mean/std diagnostics match Python
+bit-for-bit via row-major pairwise summation.
+
+### `StartPoints` — stage-5 start-point kernel
+
+`src/start_points.jl` ports the Numba start-point kernel and
+`fmm_list_creation` (`pygeonet_fast_marching.py:67-94`). The parallel
+kernel writes one byte per label (numpy's bool-array layout) so the
+disjoint-write race-freedom contract holds structurally — a packed
+`BitVector` read-modify-writes shared words and races. The serial
+reduction is deterministic in label order.
+
+### `NumPyCompat` — numeric-semantics shims
+
+`src/numpy_compat.jl` reproduces the exact numpy float32 semantics the
+kernels rely on: weak-scalar promotion, the pairwise summation order
+(eight accumulators combined two-by-two up to 128, divide-and-conquer
+beyond), `np.gradient`, `nanmean`/`nanstd`, and scipy `mquantiles`
+(`alphap=betap=0.4` — not numpy's type-7).
+
+### Kernel-port goldens
+
+`test/goldens/` holds 25 `.npy` fixtures generated by
+`tools/generate_goldens.py` from the original Python kernels on seeded
+synthetic inputs (fractal DEM with NaN holes and `-9998` flags; three
+basin geometries; scipy-quantile samples), pinned by
+`goldens/manifest.json`. The kernel suites in `test/runtests.jl` gate
+bit-exact elementwise agreement (raw bytes, NaN placement included)
+and ≤ 1e-6 relative agreement for the float64 smoothing convolution
+(measured 6.1e-16). The start-point kernel is checked three ways —
+Julia kernel, ported pure-NumPy oracle, and the real Numba kernel's
+golden output — plus a determinism re-run.
+
+## Equivalence gate
+
+`test/runtests.jl` replays the committed skfmm goldens and asserts
+**≤ 1e-6 relative agreement** on every unmasked cell plus identical
+masked-cell sets. Measured on this branch: **max relative error 0.0
+(bit-exact) on all seven cases**, including the 128×128 two-lobe basin with
+an interior zero-speed wall (11,888 masked cells) where skfmm's
+negative-discriminant and tie-freezing paths both execute. 52 tests pass.
+
+| Case | Terrain | Order | Masked cells |
+|---|---|---|---|
+| `point_source_constant` | 64² point source, constant speed | 2 | 0 |
+| `smooth_hills` | 128² smooth speed field | 2 | 0 |
+| `rough_basin_masked` | 128² two-lobe basin + interior zero-speed wall | 2 | 11,888 |
+| `edge_start_rough` | 96² rough speed, start near a corner | 2 | 0 |
+| `anisotropic_dx` | 64² `dx = (2.0, 1.0)` | 2 | 0 |
+| `row_1d` | 1×8 single-row grid | 2 | 0 |
+| `order1_smooth` | 64² first-order updates | 1 | 0 |
+
+### Regenerating the goldens
+
+The goldens are committed (`.npy` files pinned by `test/fixtures/manifest.sha256`,
+same doctrine as the COBOL track's benchmark fixtures). Regenerate with the
+reference stack only — numpy 2.3.5 / scikit-fmm 2025.6.23 in the project
+sandbox — and review the diff; the digests must reproduce bit-for-bit:
+
+```bash
+cd julia/test/fixtures && python3 generate_fmm_goldens.py
 ```
 
 ## Running
 
+```bash
+cd julia
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'   # tests
+julia --project=. bench/fmm_bench.jl                              # benchmark
 ```
-julia --project=julia -e 'using Pkg; Pkg.test()'
-```
 
-CI (`.github/workflows/julia.yml`) runs the same suite with a pinned
-Julia release downloaded in-script — the workflow uses no external
-actions, per repository policy.
+Julia ≥ 1.11. No build step; the solver is pure Julia with no runtime
+dependencies.
 
-## Goldens and equivalence doctrine
+## Benchmark notes (informational, same bytes, warm, best-of-5)
 
-`tools/generate_goldens.py` runs the original Python kernels on seeded
-synthetic inputs (96x96 fractal DEM with injected NaN holes and `-9998`
-flag patches; three hand-built basin geometries for the start-point
-kernel; 67 size-1..1000 scipy-quantile samples) and writes every
-input/output as `.npy` plus a sha256 `manifest.json`. It needs a Python
-environment with numpy/scipy/numba (import-time stubs stand in for
-rasterio/GRASS/skfmm so only the kernels under test run real code); the
-reference stack is recorded in the manifest. Regenerate with
-`python3 julia/tools/generate_goldens.py` — seeds and stack pin the
-output; CI fails if a committed fixture stops matching its hash.
+128×128 `rough_basin_masked`: skfmm 1.2 ms vs Julia 1.5 ms.
+128×128 `smooth_hills`: skfmm 4.1 ms vs Julia 5.1 ms.
+The unoptimized, equivalence-first Julia port is warm-competitive with the
+mature C extension at pipeline-relevant sizes; the bench ladder in
+`bench/fmm_bench.jl` documents scaling (≈14 ms at 256², ≈90 ms at 512²,
+≈400–500 ms at 1024² on the project sandbox). No speed claim is made or
+implied; comparisons are same-revision, same-machine observations.
 
-Gates and their rationale:
+## CI
 
-- **Bit-exact (raw bytes, NaN placement included)** for every elementwise
-  kernel. This holds because the port reproduces numpy's exact float32
-  arithmetic: weak-scalar promotion keeps scalars in the array dtype, and
-  reductions use numpy's pairwise summation order (zero seed, eight
-  accumulators combined two-by-two up to 128, divide and conquer beyond —
-  `NumPyCompat.numpy_pairwise_sum`; numpy's internally `-0.0`-seeded
-  variant sits behind an add-identity pre-add, so the zero seed matches
-  the observable result, including all-negative-zero inputs).
-- **<=1e-6 relative** for `simple_gaussian_smoothing` (a float64
-  convolution): the port accumulates the kernel in row-major order while
-  scipy's C loop may order differently; both float64 sums agree to
-  ~1e-16 on the fixtures (measured 6.1e-16), far under the gate.
-- **Reduction order matters beyond the algorithm**: element extraction
-  feeding `nanmean`/`nanstd` must iterate row-major (numpy ravel order) —
-  a column-major pass reorders the pairwise tree and drifts ulps (this
-  was a real port bug, fixed and pinned by the curvature-stats gate).
-- The oracle for the start-point kernel is the pure-NumPy reference from
-  `tests/test_stage5_determinism.py` (`reference_keep`), ported in the
-  test suite; kernel, oracle, and the real Numba kernel's golden output
-  must all agree, with repeated runs identical regardless of thread
-  scheduling (disjoint per-label writes, serial label-order reduction).
+`.github/workflows/julia.yml` runs the test suite on every push and pull
+request. Per repository policy it uses no external actions: it checks out the
+event commit inline and installs a pinned Julia 1.11.1 from the official CDN
+in a `run:` step.
 
-Known semantic quirks preserved on purpose (bug-for-bug): the
-`100.00001` area factor and `n > 2` basin-element gate; the nan-mean
-padding recipe whose corner cells inherit the horizontal means; the
-`deltaS`/`deltaE` last row/column staying zero across anisodiff
-iterations; label lookups keyed on the python 0-based `label + 1`.
+## Scope boundary
+
+The fast-marching solve and the stage-1 Perona–Malik chain, stage-2
+slope/curvature, and stage-5 start-point kernels are ported. GRASS flow
+accumulation / basin indexing (stage 3) stays external to this subproject,
+per the build spec. The Rust `pygeonet_kernels.identify_start_points` native
+path used by `pygeonet_fast_marching.py:main()` targets the same Python
+contract independently; the Julia `StartPoints` port is the equivalence-
+gated reference port and does not call the Rust extension.

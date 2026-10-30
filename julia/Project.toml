@@ -1,6 +1,6 @@
 name = "GeoNetPorts"
-uuid = "ad034aba-a7ab-44ac-932e-62620bc3de02"
-authors = ["Obvious <obvious@obvious.ai>", "Jayaram Hariharan <jayaram.hariharan@kestrelintelligence.com>"]
+uuid = "04586c37-60d8-4688-b1d8-5c9f25af11c4"
+authors = ["Obvious <obvious@obvious.ai>"]
 version = "0.1.0"
 
 [extras]
@@ -13,4 +13,4 @@ test = ["Test", "NPZ", "SHA"]
 
 [compat]
 NPZ = "0.4"
-julia = "1.10"
+julia = "1.11"
