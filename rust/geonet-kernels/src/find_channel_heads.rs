@@ -23,11 +23,12 @@
 //! - the 0.3-quantile threshold test runs on the histogram BIN EDGES (the
 //!   upstream variable ``skeletonNumElementsHistogramX`` is the edges array;
 //!   the histogram counts are computed but never used);
-//! - a component-free (empty) mask raises IndexError at the gridded-count
-//!   build (``counts[-1]`` on an empty array), a 1-row/1-column raster with a
-//!   qualifying pixel raises IndexError at the empty-window reference lookup,
-//!   and a scan that finds no heads raises IndexError at the return-array
-//!   build (``[1]`` of a size-0 array) -- the Python failure modes.
+//! - post-#14 degenerate semantics: the threshold falls back to the quantile
+//!   value when no edge qualifies; a component-free (empty) mask skips the
+//!   size statistics and a scan that finds no heads both return defined
+//!   empty coordinate outputs;
+//! - a 1-row/1-column raster with a qualifying pixel still raises IndexError
+//!   at the empty-window reference lookup (the surviving Python quirk).
 
 use numpy::{
     IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyUntypedArray, PyUntypedArrayMethods,
@@ -114,6 +115,16 @@ fn skeleton_values_f64(skeleton: &Bound<'_, PyUntypedArray>) -> Option<Vec<f64>>
     try_dtype!(i32, |v: i32| v as f64);
     try_dtype!(i64, |v: i64| v as f64);
     None
+}
+
+/// select_skeleton_size_threshold (post-#14): the first edge strictly above
+/// the edges' 0.3-quantile; when the strict selection is empty -- all-equal
+/// edges -- the quantile value itself is the threshold.
+fn select_size_threshold(edges: &[f64]) -> f64 {
+    let mut sorted = edges.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).expect("edges are finite"));
+    let q = quantile_linear(&sorted, 0.3);
+    edges.iter().copied().find(|&edge| edge > q).unwrap_or(q)
 }
 
 fn distance_values_f32(distances: &Bound<'_, PyUntypedArray>) -> Option<Vec<f32>> {
@@ -466,6 +477,15 @@ fn channel_head_scan(
         py,
         "Counting the number of elements of each connected component",
     )?;
+    if n_components == 0 {
+        // Post-#14 degenerate skeleton: no components, zero heads, defined
+        // empty outputs -- the size statistics are skipped entirely.
+        py_print(
+            py,
+            "Skeleton has no connected components; no channel heads to find",
+        )?;
+        return Ok(Vec::new());
+    }
     let edges = histogram_auto_edges(&counts);
     py_print(
         py,
@@ -477,24 +497,7 @@ fn channel_head_scan(
         py,
         &format!("Median: {}", py_float_str(py, median(&sorted_edges))?),
     )?;
-    // Threshold selection on the bin edges (see the module docs): the first
-    // edge above the 0.3-quantile of the edges themselves. Edges are strictly
-    // increasing, so the last edge always qualifies.
-    let q = quantile_linear(&sorted_edges, 0.3);
-    let threshold_index = edges
-        .iter()
-        .position(|&edge| edge > q)
-        .ok_or_else(|| PyIndexError::new_err("index 0 is out of bounds for axis 0 with size 0"))?;
-    // Python builds the gridded count array here and crashes on an
-    // empty-component input (Numtuple[-1] on an empty array) before reading
-    // the threshold index; the port reads per-label counts directly and
-    // reproduces only the observable failure.
-    if n_components == 0 {
-        return Err(PyIndexError::new_err(
-            "index -1 is out of bounds for axis 0 with size 0",
-        ));
-    }
-    let threshold = edges[threshold_index];
+    let threshold = select_size_threshold(&edges);
     py_print(
         py,
         &format!(
@@ -550,13 +553,9 @@ pub fn find_channel_heads(
     let defaults: Bound<'_, PyModule> = py.import("pygeonet_defaults")?;
     let search_box: i64 = defaults.getattr("endPointSearchBoxSize")?.extract()?;
     let heads = channel_head_scan(py, &grids, nrows, ncols, search_box)?;
-    // Return construction, mirroring np.transpose(list)[0] / [1]: an empty
-    // head list raises IndexError exactly where the Python path raises.
-    if heads.is_empty() {
-        return Err(PyIndexError::new_err(
-            "index 1 is out of bounds for axis 0 with size 0",
-        ));
-    }
+    // Return construction, mirroring post-#14 Channel_Head_Definition:
+    // zero heads produce defined empty coordinate arrays (the split halves
+    // of np.zeros((2, 0), dtype=int)), matching the Python empty path.
     let mut xx: Vec<isize> = Vec::with_capacity(heads.len());
     let mut yy: Vec<isize> = Vec::with_capacity(heads.len());
     for &(row, col) in &heads {
@@ -572,6 +571,23 @@ mod tests {
 
     // Anchors observed from the oracle environment (numpy 1.19.1 semantics,
     // verified against the frozen-input probe and direct numpy calls).
+
+    #[test]
+    fn threshold_picks_first_edge_above_quantile() {
+        // bench_m_1024 oracle anchor: q0.3 of the edges is 27.8, so the
+        // threshold is the third edge.
+        assert_eq!(
+            select_size_threshold(&[2.0, 19.2, 36.4, 53.6, 70.8, 88.0]),
+            36.4
+        );
+    }
+
+    #[test]
+    fn threshold_falls_back_to_quantile_when_no_edge_qualifies() {
+        // All-equal edges: the strict selection is empty, so the quantile
+        // value itself is the threshold (post-#14 review probe P3).
+        assert_eq!(select_size_threshold(&[7.5, 7.5, 7.5, 7.5]), 7.5);
+    }
 
     #[test]
     fn linspace_matches_numpy_1024_edges() {

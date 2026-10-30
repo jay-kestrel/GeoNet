@@ -5,10 +5,12 @@ A1: the native find_channel_heads reproduces the archived e7e1bdb one-thread
 channel-head rasters byte-for-byte on the frozen v6 inputs (512/1024/4096).
 
 A2: on synthetic edge inputs the native path and the untouched Python
-Channel_Head_Definition agree exactly -- same outputs on qualifying cases,
-same IndexError on the preserved failure modes (empty mask: no components;
-single component: the auto threshold always exceeds the only component's
-count, so the scan finds zero heads and the return-array build raises).
+Channel_Head_Definition agree exactly -- post-#14 degenerate semantics:
+empty masks (no components) and single-component inputs (the auto
+threshold exceeds the only component's count, so the scan finds zero
+heads) produce defined empty coordinate outputs, identical through both
+dispatch paths. The surviving narrow-raster reference-lookup IndexError
+is pinned by Rust unit tests, not here.
 
 Only numpy + tifffile are real for the golden tests; every heavy geospatial
 dependency is stubbed (the same pattern as test_stage5_scatter.py) so the
@@ -67,6 +69,13 @@ def _install_stub_modules():
 
     if 'pygeonet_prepare' not in sys.modules:
         plain_module('pygeonet_prepare')
+    prepare = sys.modules['pygeonet_prepare']
+    # pygeonet_rasterio does ``import pygeonet_prepare as Parameters`` and
+    # the stage-6 module reads these as write-call arguments.
+    prepare.pointFileName = 'synthetic_point'
+    prepare.pointshapefileName = 'synthetic_point'
+    prepare.geonetResultsDir = '/tmp'
+    prepare.demFileName = 'synthetic.tif'
     defaults = plain_module('pygeonet_defaults')
     # Constants the stage-6 function (and the native kernel) read.
     defaults.doPlot = 0
@@ -133,19 +142,41 @@ def _seeded_random_case():
     return skeleton, dist
 
 
+def _stub_parameters(monkeypatch):
+    """Pin the pygeonet_prepare/defaults attributes the stage-6 code path
+    reads, whichever module object sys.modules holds (a full-suite run can
+    import the real modules before this file's stubs would apply)."""
+    for name, value in (("pointFileName", "synthetic_point"),
+                        ("pointshapefileName", "synthetic_point"),
+                        ("geonetResultsDir", "/tmp"),
+                        ("demFileName", "synthetic.tif")):
+        monkeypatch.setattr(ch.Parameters, name, value, raising=False)
+    monkeypatch.setattr(ch.defaults, "doPlot", 0, raising=False)
+    monkeypatch.setattr(ch.defaults, "endPointSearchBoxSize", 30, raising=False)
+
+
 @pytest.mark.parametrize("case_builder", [_empty_mask_case, _single_component_case])
-def test_edge_inputs_raise_indexerror_in_both_paths(case_builder, monkeypatch):
-    """Preserved failure modes: empty mask and single-component inputs."""
+def test_edge_inputs_defined_empty_outputs_in_both_paths(case_builder, monkeypatch):
+    """Post-#14 degenerate semantics: both dispatch paths return defined
+    empty coordinate outputs, byte-identical to each other."""
+    _stub_parameters(monkeypatch)
+    monkeypatch.setattr(ch, "write_drainage_nodes", lambda *a, **k: None)
+    monkeypatch.setattr(ch, "write_geotif_generic", lambda *a, **k: None)
     skeleton, dist = case_builder()
-    with pytest.raises(IndexError):
-        ch.Channel_Head_Definition(skeleton, dist)
-    with pytest.raises(IndexError):
-        geonet_kernels.find_channel_heads(skeleton, dist)
+    xx_py, yy_py = ch.Channel_Head_Definition(skeleton.copy(), dist.copy())
+    xx_rs, yy_rs = geonet_kernels.find_channel_heads(skeleton, dist)
+    assert np.asarray(xx_py).shape == (0,)
+    assert np.asarray(yy_py).shape == (0,)
+    golden.assert_array_bytes_equal(
+        np.asarray(xx_rs), np.asarray(xx_py, dtype=np.asarray(xx_rs).dtype))
+    golden.assert_array_bytes_equal(
+        np.asarray(yy_rs), np.asarray(yy_py, dtype=np.asarray(yy_rs).dtype))
 
 
 def test_seeded_random_output_matches_python(monkeypatch):
     """Native heads == Python heads, coordinate-for-coordinate, on a fixed
     multi-component synthetic skeleton (writes stubbed to no-ops)."""
+    _stub_parameters(monkeypatch)
     monkeypatch.setattr(ch, "write_drainage_nodes", lambda *a, **k: None)
     monkeypatch.setattr(ch, "write_geotif_generic", lambda *a, **k: None)
     skeleton, dist = _seeded_random_case()
@@ -160,6 +191,7 @@ def test_seeded_random_output_matches_python(monkeypatch):
 
 def test_seeded_random_raster_matches_python(monkeypatch):
     """The assembled head raster equals the Python path's assembled raster."""
+    _stub_parameters(monkeypatch)
     monkeypatch.setattr(ch, "write_drainage_nodes", lambda *a, **k: None)
     monkeypatch.setattr(ch, "write_geotif_generic", lambda *a, **k: None)
     skeleton, dist = _seeded_random_case()
@@ -177,6 +209,7 @@ def test_seeded_random_raster_matches_python(monkeypatch):
 
 
 def test_main_routes_native(monkeypatch):
+    _stub_parameters(monkeypatch)
     skeleton, dist = _single_component_case()
     reads = iter([(skeleton,), (dist,)])
     monkeypatch.setattr(ch, "read_geotif_generic", lambda *a: next(reads))
@@ -199,6 +232,7 @@ def test_main_routes_native(monkeypatch):
 
 
 def test_main_routes_python_fallback(monkeypatch):
+    _stub_parameters(monkeypatch)
     skeleton, dist = _single_component_case()
     reads = iter([(skeleton,), (dist,)])
     monkeypatch.setattr(ch, "read_geotif_generic", lambda *a: next(reads))
