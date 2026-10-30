@@ -4,15 +4,24 @@ on:
     branches: [master, develop]
   pull_request:
 
+# No `uses:` steps: the org blocks any action not owned by jay-kestrel
+# ("all actions must be from a repository owned by jay-kestrel"), so
+# checkout and Python setup are done with plain git/python3 commands.
+# The runner's preinstalled Python 3 (ubuntu-latest ships 3.12) meets
+# the suite's Python 3.11+ floor; the version is logged for the record.
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install test dependencies (numba stack for the stage-5 kernel tests)
-        run: pip install numpy numba scikit-fmm matplotlib dask distributed rasterio psutil
+      - name: Check out (git, no action)
+        run: |
+          git init -q .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch -q --depth=1 origin "$GITHUB_REF"
+          git checkout -q FETCH_HEAD
       - name: Run test suite (GRASS-dependent smoke test auto-skips)
-        run: python -m unittest discover -s tests -v
+        run: |
+          python3 --version
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet numpy numba scikit-fmm matplotlib dask distributed rasterio psutil
+          .venv/bin/python -m unittest discover -s tests -v
