@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: native-wheels
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Rust format, lint, and unit tests (not extension-module linking)
+        env:
+          PYO3_PYTHON: ${{ env.pythonLocation }}/bin/python
+          PYTHONHOME: ${{ env.pythonLocation }}
+        run: |
+          cargo fmt --manifest-path rust/geonet-kernels/Cargo.toml -- --check
+          cargo clippy --locked --manifest-path rust/geonet-kernels/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path rust/geonet-kernels/Cargo.toml
+      - name: Check dependency license allowlist
+        run: |
+          cargo metadata --locked --manifest-path rust/geonet-kernels/Cargo.toml --format-version 1 > dependencies.json
+          python tools/check_native_licenses.py dependencies.json
+
+  python37:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      # Keep the exact benchmark interpreter, not just the newest 3.7 patch.
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: native37
+          create-args: >-
+            python=3.7.7 pip
+            -c https://repo.anaconda.com/pkgs/main
+          init-shell: bash
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build, install, and test with Python 3.7.7 and baseline NumPy
+        shell: bash -el {0}
+        run: |
+          python -c 'import sys; assert sys.version_info[:3] == (3, 7, 7)'
+          python -m pip install maturin==1.16.0 numpy==1.19.1 pytest==7.4.4 tifffile==2021.11.2
+          maturin build --release --interpreter "$(which python)" --out wheelhouse
+          python -m pip install --no-deps wheelhouse/*.whl
+          python -c 'import geonet_kernels; print(geonet_kernels.__file__)'
+          python -m pytest tests/test_kernel_dispatch.py tests/test_native_scaffold.py tests/test_golden_helpers.py
+          maturin sdist --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python377-build
+          path: |
+            wheelhouse/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      # 2.23.3 still builds CPython 3.7; 4.x's modern matrix is not applicable.
+      - uses: pypa/cibuildwheel@v2.23.3
+        env:
+          CIBW_BUILD: "cp37-manylinux_x86_64 cp37-macosx_x86_64 cp37-win_amd64"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal"
+          CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+          CIBW_TEST_REQUIRES: "pytest==7.4.4 numpy==1.19.1"
+          CIBW_TEST_COMMAND: 'python -c "import geonet_kernels" && python -m pytest {project}/tests/test_native_scaffold.py -q'
+        with:
+          output-dir: wheelhouse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  wheel-contents:
+    needs: wheels
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-wheels-*
+          merge-multiple: true
+          path: wheelhouse
+      - name: Verify native module, ABI tags, and license in each platform wheel
+        run: python tools/check_native_wheels.py wheelhouse

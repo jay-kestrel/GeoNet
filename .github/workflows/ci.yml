@@ -13,6 +13,6 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install test dependencies (numba stack for the stage-5 kernel tests)
-        run: pip install numpy numba scikit-fmm matplotlib dask distributed rasterio psutil
+        run: pip install numpy numba scikit-fmm matplotlib dask distributed rasterio psutil pytest tifffile
       - name: Run test suite (GRASS-dependent smoke test auto-skips)
-        run: python -m unittest discover -s tests -v
+        run: python -m pytest tests -v
