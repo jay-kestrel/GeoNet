@@ -54,6 +54,18 @@ Default File Structure:
         - dem.tif
   - *** configuration file ***
   
+  #### Pre-flight checks
+
+  Verify the configuration, home directory, input DEM, and project directories before running the pipeline stages:
+
+  ```python pygeonet_check_setup.py```
+
+  Add ```--imports``` to also check that every Python dependency the pipeline needs can be imported.
+
+  Print Python, git, and dependency versions for bug reports:
+
+  ```python pygeonet_envinfo.py```
+
   ## Scripts
   
   1. Perona-Malik non-linear, diffusion filter:
