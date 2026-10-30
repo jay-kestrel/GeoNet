@@ -1,0 +1,60 @@
+{
+  "files": {
+    "curvature_laplacian.npy": "dd2a00e22c08b29ec905d82648f424a2410cf60013daa1410e1895e44b230ee0",
+    "curvature_output.npy": "6724f4827c187ef05eac05090ff714d9097640d801e260ca78869bbe94a417ec",
+    "curvature_stats.npy": "174c73499a7a0be1f4bce3fe1a5806145e87233e4e631a7ce01baa23e4a4c5c0",
+    "mq_offsets.npy": "d65294eb3298598753bf82cf43cdb92c3c7c751d76c78446dad751693161d5ec",
+    "mq_quantiles.npy": "bb5facd3940ea6e7f0c41c20d1fb6ed22d176d432e5b22d166586c9bc93076f4",
+    "mq_sizes.npy": "a9e50413e756277f6edadd2906e540ad8f4184fe826aacd9162283b2450482ee",
+    "mq_vals.npy": "3ed2feafff76207b5b1a6ca6560027d2197e080a5f02aee0a509a1de1f9cf393",
+    "pm_filtered.npy": "2cfbfc1bbef81f233dfee38fc50ea9f759d4a8db25dfe7b5082c526bf3e3ef3a",
+    "pm_filtered_opt1.npy": "516291275cad8e18ef01f94da8a95dd0d94817b49f73cc93d5e07ffe4705082c",
+    "pm_gaussian_smoothing.npy": "0507b85d46ccfccfd2f7932a9ed4b38df53026466669b100771c8079ee9f3601",
+    "pm_input_dem.npy": "c03c9b2f32f56756ffde42b55b1f6fb41b4ffad19fe6afa70132be556b52b636",
+    "pm_lambda.npy": "168cbf6a82c841796613e591e90e918f31dbfc1f449f1d22a13165a9b8ba2683",
+    "slope_output.npy": "f62c6f64f2e64f4ef569dae68f20af94394f77705b54859163ce65b096e5d617",
+    "sp_edge1x32_basin.npy": "e510efd11a586237b0196d944e59ebdba9a7e283104421dae7597b112991e169",
+    "sp_edge1x32_fmm.npy": "d090838b2e0a1b7c2dfa59010f35c5a1ff7d3e96d8e34597654dbc47cd996d2d",
+    "sp_edge1x32_keep.npy": "ce9585c62f42eecf96a82a40ba63918b64bc19ada876ebf42c86e4d7e73af8ba",
+    "sp_edge1x32_splist.npy": "d090838b2e0a1b7c2dfa59010f35c5a1ff7d3e96d8e34597654dbc47cd996d2d",
+    "sp_grid36_basin.npy": "afee2671cebd91934d0a40aae7649dd937cf012a5c6c35d8e32330110ee6c177",
+    "sp_grid36_fmm.npy": "c07677dfa14b515482d04c9562bbeebec7cc9be2f057bd6d77e8d2576016320a",
+    "sp_grid36_keep.npy": "45b9388e6d85920be62c7b173c583a12797178fb1b6163b170a42ff39b216766",
+    "sp_grid36_splist.npy": "fa001d68860a186ff97c06e9ac7f5c4a9db1b83042b7ab10a6358c0ddc7da013",
+    "sp_mixed20_basin.npy": "d0df8e4f81ad4199326f2d9f5c54ea970d1788b738e48fcc0b0f19c6a2dfc074",
+    "sp_mixed20_fmm.npy": "ed50c701ac3915d9fc61d13f326ae04f1ab822501d84a46db7e17f96e02e2734",
+    "sp_mixed20_keep.npy": "df895d5a64a0c9a179c717d19d3131377806b8edaea3014f30a9c2d3e6cb2a95",
+    "sp_mixed20_splist.npy": "0e989ed4df5b9f72cff831f9bfed8c618466ea1154625c4fe12cefec856e0685"
+  },
+  "license": "GPL-3.0-or-later",
+  "notes": [
+    "pm_input_dem.npy is the post-flag-conversion NaN DEM the kernels receive",
+    "keep masks are stored as uint8 (0/1)",
+    "lambda and curvature_stats are stored as float64",
+    "mq_* pins scipy mquantiles defaults (alphap=betap=0.4) on |values| at p=0.9"
+  ],
+  "pixel_scale": 30.0,
+  "pm_args": {
+    "gamma": 0.1,
+    "kernel_width": 5,
+    "niter": 50,
+    "option_default": 2,
+    "sigma_squared": 0.05,
+    "step": [
+      30.0,
+      30.0
+    ]
+  },
+  "reference_stack": {
+    "numba": "0.66.0",
+    "numpy": "2.3.5",
+    "python": "3.13.14",
+    "scipy": "1.17.1"
+  },
+  "seed": 20261030,
+  "source_commit": "6557d944c2a23bc86eacc23148b763bb8210ef8c",
+  "start_point_args": {
+    "basin_elements": 2,
+    "threshold_percent_area": 0.1
+  }
+}
