@@ -115,6 +115,7 @@ If a script imports `pygeonet_prepare`, the cfg is resolved and directories are 
 
 ## Known limitations when running
 
-- **No cross-platform pipeline env exists.** The conda pins and `requirements.txt` are win-64; `requirements.txt` is a conda `@EXPLICIT` file, not pip. Stages 4 and 6 import and run on modern Python again as of PR #10, but the pinned Python 3.7.7 env remains the only verified end-to-end baseline; see [SETUP.md](../SETUP.md).
-- **`Old_Version/` and `pygeonet_grass_py2.py` are legacy and unsupported** — do not run them.
-- The channel-network / cross-section / bank-line shapefile writers in `pygeonet_vectorio` are GeoFlood-heritage code with Python-2 `xrange` loops; they are not called by the pipeline. Only the channel-heads writer is wired in (stage 6).
+- Stages 4 and 6 previously failed on Python ≥ 3.8 / NumPy ≥ 2 — fixed by PR #10; the pinned conda env (Python 3.7.7) remains the verified end-to-end baseline.
+- **No cross-platform pipeline env exists.** The conda pins and `requirements.txt` are win-64; `requirements.txt` is a conda `@EXPLICIT` file, not pip.
+- **`Old_Version/` is legacy and unsupported** — do not run it (the Python-2-only `pygeonet_grass_py2.py` wrapper has been removed).
+- The channel-network / cross-section / bank-line shapefile writers in `pygeonet_vectorio` are GeoFlood-heritage code; they are not called by the pipeline (PR #10 replaced their Python-2 `xrange` loops with `range`, but they remain unwired). Only the channel-heads writer is wired in (stage 6).

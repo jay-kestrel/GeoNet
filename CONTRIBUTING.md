@@ -53,11 +53,13 @@ Rules this imposes on contributions:
 - **GRASS is always mocked.** Tests never require a GRASS install; `test_grass_session_init.py` stands in for `grass.script.setup` with a recording fake. Any new GRASS-coupled logic should be testable through an injected `gsetup`-like object, not by calling GRASS.
 - **Prefer testing pure helpers** (version parsing, cfg resolution, numba kernels on synthetic arrays) over end-to-end script runs.
 
-## Known breakages — do not "fix" them casually, do not build on them
+## Former breakages — resolved by PR #10, guarded by the import sweep
 
-- `pygeonet_vectorio.py`'s network/cross-section/bank-line writers use `xrange` — Python 2 remnants, uncalled by the pipeline.
+- Stage 6 (`pygeonet_channel_head_definition.py`) no longer imports `time.clock` (removed in PR #10); it imports on any Python 3.
+- Stage 4 (`pygeonet_skeleton_definition.py`) no longer uses `np.warnings` (stdlib `warnings` since PR #10); its threshold path runs on modern NumPy.
+- `pygeonet_vectorio.py`'s network/cross-section/bank-line writers no longer use `xrange` (PR #10); they remain uncalled by the pipeline.
 
-Fixing these is welcome as **ordinary code PRs** (they change runtime behavior, so they get real review and a regression test each) — just be aware the current test suite deliberately does not execute those paths.
+Behavior-changing fixes like these are **ordinary code PRs** (they get real review and a regression test each); `tests/test_import_smoke.py` now imports every `pygeonet_*.py` module on Python 3 and pins the stage-4 threshold path, so a regression in these areas fails the suite.
 
 ## Commit and PR conventions
 

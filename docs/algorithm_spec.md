@@ -57,7 +57,7 @@ The `thresholdAreaSubBasinIndexing` value is in **cells**: it is the smallest dr
 
 Three binary skeletons (1 = channel cell, 0 elsewhere):
 
-- **Flow skeleton:** `compute_skeleton_by_single_threshold(flow, flowThresholdForSkeleton)` — cells with D8 accumulation area > 3000 cells (default). *Known breakage:* this function calls `np.warnings.filterwarnings('ignore')`, which raises `AttributeError` on NumPy ≥ 2.0.
+- **Flow skeleton:** `compute_skeleton_by_single_threshold(flow, flowThresholdForSkeleton)` — cells with D8 accumulation area > 3000 cells (default). *Fixed by PR #10:* the `np.warnings.filterwarnings('ignore')` call (an `AttributeError` on NumPy ≥ 2.0) was replaced with the stdlib `warnings` module; the function runs on modern NumPy.
 - **Curvature skeleton:** single threshold at `mean + 1.5·stddev` of the curvature distribution — the 1.5 sigma factor (`thresholdCurvatureQQxx`) is hardcoded in `main()` (the `defaults.thresholdQqCurvature = 0` knob is not wired).
 - **Dual skeleton:** `mask_flow · mask_curvature` — cells above **both** thresholds. This is the skeleton the rest of the pipeline uses (`<dem>_skeleton.tif`).
 
@@ -114,7 +114,7 @@ travelTime = skfmm.travel_time(phi, speed, dx=0.01)
 
 **Script:** `pygeonet_channel_head_definition.py` · **Reads:** `<dem>_skeleton.tif`, `<dem>_geodesicDistance.tif` · **Writes:** `<dem>_channelHeads.tif`, `<dem>_channelHeads.shp`
 
-> **Known breakage:** the module-level `from time import clock` raises `ImportError` on Python ≥ 3.8. This stage runs only on the pinned conda env (Python 3.7.7) until that import is replaced.
+> *Fixed by PR #10:* the module-level `from time import clock` (an `ImportError` on Python ≥ 3.8) was removed; the stage imports on any Python 3. The pinned conda env (Python 3.7.7) remains the verified end-to-end baseline.
 
 Algorithm — a channel head is a skeleton endpoint that is a local **maximum** of geodesic travel time along its connected component:
 
