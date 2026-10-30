@@ -1,0 +1,191 @@
+{
+  "license": "GPL-3.0-or-later",
+  "source_commit": "e7e1bdb6429e58d57112cb6bffa2f4de2626f61b",
+  "archive_file_id": "fl_NGrEVwuj",
+  "archive_sha256": "72b1a94825dcc8e59ad7628acfe0e74ff30d8ec380aa3028e843b246cc888446",
+  "cases": {
+    "bench_s_512": {
+      "size": 512,
+      "input": {
+        "path": "data/GeoInputs/GIS/bench_s_512/bench_s_512.tif",
+        "sha256": "ae8fee093b3434eeaa108032e2139ad5c243ae13ce2a094b0a02a74156b21e1d"
+      },
+      "outputs": {
+        "PM_filtered_grassgis.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/PM_filtered_grassgis.tif",
+          "sha256": "f98a9a7828c6771ca0f75449c9e065e1fc91011bd3a1ebfbd5d8ad31249d50aa"
+        },
+        "bench_s_512_basins.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_basins.tif",
+          "sha256": "603d9af5ed87694fe9f7dcc3ae30960b4f370975e43b5e5233be9d62f4bcb7d5"
+        },
+        "bench_s_512_channelHeads.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_channelHeads.tif",
+          "sha256": "54f41402df94bb0757b61bf41e69180e392461976459be45fbe8c70e37706ba6"
+        },
+        "bench_s_512_costfunction.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_costfunction.tif",
+          "sha256": "0495b4751ea2cca205daf9b061a69828985510163d454f5058b324a4027f4f2b"
+        },
+        "bench_s_512_curvature.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_curvature.tif",
+          "sha256": "4fd0d9adddba856a7cee75eb0406ca3ab532fa15432a3590ae76a3e98ef09c8d"
+        },
+        "bench_s_512_curvatureskeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_curvatureskeleton.tif",
+          "sha256": "f6cd121c536f14e9b6a273ffd6a67c5bedcefeb1cd54f576adb4820aba04528c"
+        },
+        "bench_s_512_fac.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_fac.tif",
+          "sha256": "d0c9aa07a63f6ceb5a2ec5354078228f3066211812f5cd2e7d377e6ddb859115"
+        },
+        "bench_s_512_fdr.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_fdr.tif",
+          "sha256": "b46a9b9c655eba1105433344b70a6e5557db83f5c88069c31b0afea4ca1b6d2e"
+        },
+        "bench_s_512_flowskeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_flowskeleton.tif",
+          "sha256": "de1ca3bcb523bcd1fb25ac28c74fb06a07e10ca759cfee3026d056e565c3accb"
+        },
+        "bench_s_512_geodesicDistance.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_geodesicDistance.tif",
+          "sha256": "11fee2a8a9170e79acade07149ecc5b5b2f3f9da075825ba40aa1dcca02a3efe"
+        },
+        "bench_s_512_outlets.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_outlets.tif",
+          "sha256": "5b97a06f09ed598dc511618beda0d0b5f2f245b9850bb8ed02e3bb6b5a01ad19"
+        },
+        "bench_s_512_skeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_skeleton.tif",
+          "sha256": "9f08ee41def7ef3ac96f4507ff6777004a2da1c3eea249d8853e64afe7a81759"
+        },
+        "bench_s_512_slope.tif": {
+          "path": "data/GeoOutputs/GIS/bench_s_512/bench_s_512_slope.tif",
+          "sha256": "b738e0b9d7e97d5767dd9b713c64f9fa5da003d06d189b0370536945aa8588d1"
+        }
+      }
+    },
+    "bench_m_1024": {
+      "size": 1024,
+      "input": {
+        "path": "data/GeoInputs/GIS/bench_m_1024/bench_m_1024.tif",
+        "sha256": "e3920063ade1d2f6fd9638600a1b06a083dede7fa5c19cccdd6de36c28ae4e5e"
+      },
+      "outputs": {
+        "PM_filtered_grassgis.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/PM_filtered_grassgis.tif",
+          "sha256": "b0e81b77ed0308166bfe76944de7018ce0592a780d0cf7541b92f7e7938ab72c"
+        },
+        "bench_m_1024_basins.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_basins.tif",
+          "sha256": "58ccebe6dc536dc8f3a2f7a0b1d0b4c63a4f4fbe3ef9deeb9fbd8c4239997eb6"
+        },
+        "bench_m_1024_channelHeads.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_channelHeads.tif",
+          "sha256": "8b65f724819858737d434efabc6e1e9ac01b9db5de23f9052377d940002d0716"
+        },
+        "bench_m_1024_costfunction.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_costfunction.tif",
+          "sha256": "ba4155b313c2c63db063e0754c8ff6c18974ce7c64f335936c6cbe3d9746442f"
+        },
+        "bench_m_1024_curvature.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_curvature.tif",
+          "sha256": "94c2a426e618c96c655ed82b3c1ef03da7bb497d780edf8dd06835a101d3dc3d"
+        },
+        "bench_m_1024_curvatureskeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_curvatureskeleton.tif",
+          "sha256": "d91cdcc7edf87f87d1e9c57dbb3f5cbeea9891432d16b3bbb2cd1138d4e854a2"
+        },
+        "bench_m_1024_fac.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_fac.tif",
+          "sha256": "56edc352ba8e41455acd01bd9c74856c60009e4348a48a18533c93de1592d638"
+        },
+        "bench_m_1024_fdr.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_fdr.tif",
+          "sha256": "910518b97a0d0e280192d33244e2b1d1778a5da8340c3a6759a50053d7345f54"
+        },
+        "bench_m_1024_flowskeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_flowskeleton.tif",
+          "sha256": "7145894c40aba789410f2a72ab3ed82f31a0d2ef73a10e2e514913926ce69597"
+        },
+        "bench_m_1024_geodesicDistance.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_geodesicDistance.tif",
+          "sha256": "c55829b92e52ee4ff9349d323eacfa6b8043d9a8a0019ed9d872f01539ea1a2c"
+        },
+        "bench_m_1024_outlets.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_outlets.tif",
+          "sha256": "6dc38e1532c255016a4ba7b8fc554596057b3373910901d6f432b2bd0087ae6d"
+        },
+        "bench_m_1024_skeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_skeleton.tif",
+          "sha256": "c8c9192c18cd689335f57d35f5a40499474a82156939c0c32615529337363c36"
+        },
+        "bench_m_1024_slope.tif": {
+          "path": "data/GeoOutputs/GIS/bench_m_1024/bench_m_1024_slope.tif",
+          "sha256": "cdc53394dea12659529f3796a8f0211e50106c6d09ecc4b524c21cb3f8c1c0da"
+        }
+      }
+    },
+    "bench_l_4096": {
+      "size": 4096,
+      "input": {
+        "path": "data/GeoInputs/GIS/bench_l_4096/bench_l_4096.tif",
+        "sha256": "6afe5602682e2906e853452b02dfb151f265465ce901a28895d737a99e9647f9"
+      },
+      "outputs": {
+        "PM_filtered_grassgis.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/PM_filtered_grassgis.tif",
+          "sha256": "6cc15a9fff0b8ab7905befc122acefa95d2b45b52af2c36398af58176a46463b"
+        },
+        "bench_l_4096_basins.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_basins.tif",
+          "sha256": "daf6c28c67ec0acc36b4f592c39dda50c727b9fc1cca0bd70a9b5da9fb314c98"
+        },
+        "bench_l_4096_channelHeads.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_channelHeads.tif",
+          "sha256": "feef4bd330ebcb93031d8833abbb4472eb5db4afede3118072c348199e2cd3fd"
+        },
+        "bench_l_4096_costfunction.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_costfunction.tif",
+          "sha256": "cf5c4fa8740af709403e887337af12c99fc3fe8207938a3f5fe694c1db446a89"
+        },
+        "bench_l_4096_curvature.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_curvature.tif",
+          "sha256": "7f0d90c787d30f335f132c13ce10d4dc0987de161cd1ca177b197b45141d4bdd"
+        },
+        "bench_l_4096_curvatureskeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_curvatureskeleton.tif",
+          "sha256": "bdeb4eefda9117b1518760b8ea768621fd634cad7f4a18c194b8a857a5eb4194"
+        },
+        "bench_l_4096_fac.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_fac.tif",
+          "sha256": "78b36582101a9afee0e88960218a1c6870314ffe0faa7dc96a3b0f3a575eea07"
+        },
+        "bench_l_4096_fdr.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_fdr.tif",
+          "sha256": "ff0a6cbf7cb52c58bbbce2612ed0adf88506edbfba8c4d2c6c625e2a75514234"
+        },
+        "bench_l_4096_flowskeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_flowskeleton.tif",
+          "sha256": "f7c5c45f8f79ad6b527684adcf950ebf0870ae0795b2ba6cd02c95f9ad4a1901"
+        },
+        "bench_l_4096_geodesicDistance.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_geodesicDistance.tif",
+          "sha256": "4cc44bc26a6f1d8636944a506e04d5d207b6ab1c6e402fed2229f9fbacc3312f"
+        },
+        "bench_l_4096_outlets.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_outlets.tif",
+          "sha256": "a24a843e29be56af5703d41fb5fd9dc07a6084c9f2498f33b082230c68d0b026"
+        },
+        "bench_l_4096_skeleton.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_skeleton.tif",
+          "sha256": "fe937b23f4013efbc9667ca66cd452887eb508cd2c6cef24f13df733fad6ddf4"
+        },
+        "bench_l_4096_slope.tif": {
+          "path": "data/GeoOutputs/GIS/bench_l_4096/bench_l_4096_slope.tif",
+          "sha256": "4fdbf739c5a84dc7148ab5672e07b0e2202da7bc0d917b383a902c6883cc06c2"
+        }
+      }
+    }
+  }
+}
