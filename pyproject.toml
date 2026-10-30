@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[build-system]
+requires = ["maturin==1.16.0"]
+build-backend = "maturin"
+
+[project]
+name = "geonet-kernels"
+version = "0.1.0"
+description = "Optional compute-only native kernel scaffolding for GeoNet"
+requires-python = ">=3.7"
+license = { file = "License.txt" }
+dependencies = ["numpy>=1.16"]
+
+[tool.maturin]
+manifest-path = "rust/geonet-kernels/Cargo.toml"
+module-name = "geonet_kernels"
+features = ["pyo3/extension-module"]
+locked = true
+include = [
+    { path = "pygeonet_kernels.py", format = "sdist" },
+    { path = "tests/**", format = "sdist" },
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
+addopts = "-ra"

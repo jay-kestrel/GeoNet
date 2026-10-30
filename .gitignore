@@ -3,3 +3,7 @@ __pycache__/
 .pytest_cache/
 GeoNet_*.cfg
 project_pointer.cfg
+# Native build products (source and Cargo.lock remain tracked).
+rust/geonet-kernels/target/
+wheelhouse/
+dist/
