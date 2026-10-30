@@ -6,6 +6,7 @@ from pygeonet_plot import *
 import time
 from numba import njit
 from numba import prange
+import pygeonet_kernels
 import psutil
 import dask
 from dask.distributed import Client
@@ -237,7 +238,7 @@ def main():
 
     # Making outlets for FMM
     t1 = time.perf_counter()
-    qualifyingStartPoints = Fast_Marching_Start_Point_Identification(outlet_array, basinIndexArray,fastMarchingStartPointList,nDempixels,basin_elements, threshold, iter_total)
+    qualifyingStartPoints = pygeonet_kernels.identify_start_points(outlet_array, basinIndexArray,fastMarchingStartPointList,nDempixels,basin_elements, threshold, iter_total)
 
     t2 = time.perf_counter()
     print(f'Calc Time: {t2-t1}')
