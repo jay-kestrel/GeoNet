@@ -9,3 +9,6 @@ wheelhouse/
 dist/
 # COBOL build artifacts (kernel and shim sources stay tracked).
 lib/
+
+# Julia: per-checkout dependency resolution of the test environment
+julia/Manifest.toml
