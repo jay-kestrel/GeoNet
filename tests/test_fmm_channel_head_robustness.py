@@ -89,6 +89,7 @@ import numpy as np  # noqa: E402
 import skfmm  # noqa: E402
 import pygeonet_fast_marching as fmm  # noqa: E402
 import pygeonet_channel_head_definition as ch  # noqa: E402
+import pygeonet_rasterio as rio  # noqa: E402
 
 _MISSING = object()
 
@@ -348,6 +349,92 @@ class SkeletonSizeThresholdTests(unittest.TestCase):
         threshold = ch.select_skeleton_size_threshold(edges)
         self.assertTrue(np.isfinite(threshold))
         self.assertEqual(threshold, 4.0)
+
+
+class _StubBand:
+    def __init__(self, rec):
+        self._rec = rec
+
+    def WriteArray(self, arr):
+        self._rec['written'] = arr
+
+    def FlushCache(self):
+        self._rec['flushed'] = True
+
+
+class _StubDataset:
+    def __init__(self, rec):
+        self._rec = rec
+
+    def SetGeoTransform(self, gt):
+        self._rec['geotransform'] = gt
+
+    def SetProjection(self, wkt):
+        self._rec['projections'].append(wkt)
+
+    def GetRasterBand(self, index):
+        return _StubBand(self._rec)
+
+
+class _StubDriver:
+    def __init__(self, rec):
+        self._rec = rec
+
+    def Create(self, name, ncols, nrows, bands, dtype):
+        self._rec['create_args'] = (name, ncols, nrows, bands, dtype)
+        return _StubDataset(self._rec)
+
+
+class _StubSRS:
+    def __init__(self, rec, code):
+        self._rec = rec
+        self._code = code
+
+    def GetAuthorityCode(self, target):
+        return self._code
+
+    def ImportFromEPSG(self, code):
+        self._rec['epsg'] = code
+
+    def ExportToWkt(self):
+        return 'EPSG-WKT'
+
+
+class FilteredDemCrsTests(ModuleStateTestCase):
+    """F14: write_geotif_filteredDEM and the EPSG authority code.
+
+    GetAuthorityCode('PROJCS') returns None for CRS without an EPSG code
+    (custom/ESRI WKT); the old writer called int(None) -> TypeError. The
+    end-to-end path needs GDAL bindings (not installed), so the writer is
+    exercised through stub gdal/osr objects.
+    """
+
+    def write_filtered_dem(self, authority_code):
+        rec = {'projections': [], 'epsg': 'not-called'}
+        self.set_attr(rio, 'Parameters', types.SimpleNamespace(
+            pmGrassGISfileName='/tmp/geonet-gn2-tests/filtered.tif',
+            geotransform=(0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            inputwktInfo='source-wkt'))
+        self.set_attr(rio.gdal, 'GDT_Float32', 'float32-stub')
+        self.set_attr(rio.gdal, 'GetDriverByName',
+                      lambda name: _StubDriver(rec))
+        self.set_attr(rio.osr, 'SpatialReference',
+                      lambda wkt: _StubSRS(rec, authority_code))
+        rio.write_geotif_filteredDEM(np.ones((4, 4), dtype=np.float32),
+                                     '/tmp/geonet-gn2-tests', 'filtered.tif')
+        return rec
+
+    def test_writer_tolerates_missing_epsg_authority(self):
+        rec = self.write_filtered_dem(None)
+        # no EPSG re-import attempted; the source projection set from
+        # Parameters.inputwktInfo is kept
+        self.assertEqual(rec['epsg'], 'not-called')
+        self.assertEqual(rec['projections'], ['source-wkt'])
+
+    def test_writer_reimports_projection_when_authority_present(self):
+        rec = self.write_filtered_dem('32617')
+        self.assertEqual(rec['epsg'], 32617)
+        self.assertEqual(rec['projections'], ['source-wkt', 'EPSG-WKT'])
 
 
 if __name__ == '__main__':

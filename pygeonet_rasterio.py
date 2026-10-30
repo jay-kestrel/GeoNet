@@ -132,8 +132,11 @@ def write_geotif_filteredDEM(filteredDemArray, filepath, filename):
     outband.WriteArray(filteredDemArray)
     outRasterSRS = osr.SpatialReference(wkt=Parameters.inputwktInfo)
     authoritycode = outRasterSRS.GetAuthorityCode("PROJCS")
-    outRasterSRS.ImportFromEPSG(int(authoritycode))
-    outDs.SetProjection(outRasterSRS.ExportToWkt())
+    if authoritycode is not None:
+        outRasterSRS.ImportFromEPSG(int(authoritycode))
+        outDs.SetProjection(outRasterSRS.ExportToWkt())
+    # CRS without an EPSG authority code (custom/ESRI WKT) keep the
+    # source projection already set above; int(None) raised TypeError.
     outband.FlushCache()
     # finishing the writing of filtered DEM
     del outDs, outband, driver, outRasterSRS
