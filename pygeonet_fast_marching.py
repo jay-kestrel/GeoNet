@@ -66,23 +66,33 @@ def Fast_March_Setup(outlet_array, basinIndexArray):
 
 @njit(parallel=True)
 def Fast_Marching_Start_Point_Identification(outlet_array, basinIndexArray,fastMarchingStartPointList, nDempixels,basin_elements, threshold, iter_total):
-    fmmX = []
-    fmmY = []
+    # Pass 1 (parallel): per-label basin qualification. Each label writes only
+    # its own slot of the `keep` mask (disjoint memory locations), so the
+    # parallel writes are race-free; the basin raster is read-only here. The
+    # original version appended to two shared Python lists inside prange,
+    # which raced on the list buffers: nondeterministic order, lost appends,
+    # and heap corruption (SIGSEGV/SIGABRT).
+    # Pass 2 (deterministic serial reduction) lives in fmm_list_creation,
+    # which gathers the qualifying start points in label order.
+    keep = np.zeros(iter_total, dtype=np.bool_)
     for label in prange(iter_total):
-        #print(np.sum(basinIndexArray.ravel()==(label+1)))
         numelments = np.sum(basinIndexArray.ravel()==(label+1))
-        
-        percentBasinArea = numelments * 100.00001/nDempixels
-        if (percentBasinArea > threshold) and (numelments > basin_elements):            
-            fmmX.append(fastMarchingStartPointList[1,label])
-            fmmY.append(fastMarchingStartPointList[0,label])
-        
-    return fmmX, fmmY
 
-def fmm_list_creation(fmmY,fmmX):
+        percentBasinArea = numelments * 100.00001/nDempixels
+        if (percentBasinArea > threshold) and (numelments > basin_elements):
+            keep[label] = True
+
+    return keep
+
+
+def fmm_list_creation(fastMarchingStartPointList, qualifyingStartPoints):
+    # Deterministic serial reduction: gather the qualifying start points in
+    # label order, exactly as a race-free serial run of the original loop did.
+    fmmY = fastMarchingStartPointList[0, qualifyingStartPoints]
+    fmmX = fastMarchingStartPointList[1, qualifyingStartPoints]
     fastMarchingStartPointListFMM = np.array([fmmY,fmmX])
-    del fmmY, fmmX
     return fastMarchingStartPointListFMM
+
 
 
 # Normalize Input Array
@@ -219,11 +229,13 @@ def main():
 
     # Making outlets for FMM
     t1 = time.perf_counter()
-    fmmX,fmmY = Fast_Marching_Start_Point_Identification(outlet_array, basinIndexArray,fastMarchingStartPointList,nDempixels,basin_elements, threshold, iter_total)
+    qualifyingStartPoints = Fast_Marching_Start_Point_Identification(outlet_array, basinIndexArray,fastMarchingStartPointList,nDempixels,basin_elements, threshold, iter_total)
+
     t2 = time.perf_counter()
     print(f'Calc Time: {t2-t1}')
     # Create Final FMM List
-    fastMarchingStartPointListFMM = fmm_list_creation(fmmY,fmmX)
+    fastMarchingStartPointListFMM = fmm_list_creation(fastMarchingStartPointList, qualifyingStartPoints)
+
     print(fastMarchingStartPointListFMM)
     # Computing the local cost function
     print('Preparing to calculate cost function')
