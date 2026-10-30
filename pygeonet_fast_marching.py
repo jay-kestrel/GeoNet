@@ -130,9 +130,17 @@ def Local_Cost_Computation(flowArray, flowMean,
                                    (flowMean*skeletonFromFlowAndCurvatureArray)\
                                    + (flowMean*curvatureDemArray)
     if hasattr(defaults,'reciprocalLocalCostMinimum'):
-        if defaults.reciprocalLocalCostMinimum != 'nan':
-            reciprocalLocalCostArray[reciprocalLocalCostArray[:]\
-                                 < defaults.reciprocalLocalCostMinimum]=1.0
+        minimum = defaults.reciprocalLocalCostMinimum
+        # numeric-or-None: 'nan' (the shipped default) and None mean no clamp;
+        # anything else is a number (or a numeric string from the cfg reader)
+        # and clamps low costs to 1.0. A non-numeric string fails loudly on
+        # the float() conversion instead of a ufunc TypeError.
+        if not (minimum is None
+                or (isinstance(minimum, str)
+                    and minimum.strip().lower() == 'nan')):
+            minimum = float(minimum)
+            reciprocalLocalCostArray[reciprocalLocalCostArray\
+                                 < minimum]=1.0
     
     print('1/cost min: ', np.nanmin(reciprocalLocalCostArray[:]))
     print('1/cost max: ', np.nanmax(reciprocalLocalCostArray[:]))
@@ -180,10 +188,10 @@ def Fast_Marching(fastMarchingStartPointListFMM, basinIndexArray, flowArray, rec
             travelTimearray = travel_time_with_domain_guard(
                 phi, speed, dx=.01, catchmentIndex=basinIndexList,
                 startPoint=fastMarchingStartPointListFMM[:, i])
-        except IOError as e:
+        except FastMarchingDomainError as e:
             print('Error in calculating skfmm travel time')
             print('Error in catchment: ',basinIndexList)
-            print("I/O error({0}): {1}".format(e.errno, e.strerror))
+            print('Domain error: ', e)
             # setting travel time to empty array
             travelTimearray = np.nan * np.zeros((reciprocalLocalCostArray.shape))
             #if defaults.doPlot == 1:
@@ -193,7 +201,6 @@ def Fast_Marching(fastMarchingStartPointListFMM, basinIndexArray, flowArray, rec
             #    raster_point_plot(phi, fastMarchingStartPointListFMM[:,i],
             #                      'phi basin Index'+str(basinIndexList))
         geodesicDistanceArray[maskedBasin ==1]= travelTimearray[maskedBasin ==1]
-    geodesicDistanceArray[maskedBasin ==1]= travelTimearray[maskedBasin ==1]
     geodesicDistanceArray[geodesicDistanceArray==np.inf]=np.nan
     # Plot the geodesic array
     #if defaults.doPlot == 1:
