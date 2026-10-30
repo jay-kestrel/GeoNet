@@ -10,6 +10,38 @@ import psutil
 import dask
 from dask.distributed import Client
 
+
+class FastMarchingDomainError(RuntimeError):
+    """Raised when the fast-marching travel-time solve fails for a catchment.
+
+    Carries the catchment index and start point so failures are diagnosable,
+    instead of surfacing an opaque scikit-fmm RuntimeError.
+    """
+
+
+def travel_time_with_domain_guard(phi, speed, dx, catchmentIndex, startPoint):
+    """Run skfmm.travel_time, converting opaque failures into domain errors.
+
+    scikit-fmm < 2021.1.20 aborts the whole march with "Negative discriminant
+    in time marcher quadratic." (RuntimeError) when the eikonal update
+    quadratic has no real solution on rough cost fields (scikit-fmm issue
+    #18); degenerate phi inputs raise ValueError. Neither error is safe to
+    swallow, so both are re-raised as FastMarchingDomainError with the
+    catchment context attached.
+    """
+    try:
+        return skfmm.travel_time(phi, speed, dx=dx)
+    except (ValueError, RuntimeError) as e:
+        raise FastMarchingDomainError(
+            'Fast marching failed for catchment {0} at start point '
+            '({1}, {2}): {3}. A rough or degenerate reciprocal-local-cost '
+            'field can leave the eikonal update quadratic with no real '
+            'solution; scikit-fmm>=2021.1.20 handles the common case '
+            'internally (see the pin in GeoNetEnv.yml). Inspect the cost '
+            'function output for this catchment before retrying.'.format(
+                catchmentIndex, startPoint[0], startPoint[1], e)) from e
+
+
 def Fast_March_Setup(outlet_array, basinIndexArray):
 
     # Computing the percentage drainage areas
@@ -145,8 +177,10 @@ def Fast_Marching(fastMarchingStartPointListFMM, basinIndexArray, flowArray, rec
         del maskedBasinFAC
         print(f'RAM usage before FMM {i}: {psutil.virtual_memory()}')
         try:
-            travelTimearray = skfmm.travel_time(phi, speed, dx=.01)
-        except IOError as e:            
+            travelTimearray = travel_time_with_domain_guard(
+                phi, speed, dx=.01, catchmentIndex=basinIndexList,
+                startPoint=fastMarchingStartPointListFMM[:, i])
+        except IOError as e:
             print('Error in calculating skfmm travel time')
             print('Error in catchment: ',basinIndexList)
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
@@ -158,11 +192,6 @@ def Fast_Marching(fastMarchingStartPointListFMM, basinIndexArray, flowArray, rec
                 #plt.contour(speed,cmap=cm.coolwarm)
             #    raster_point_plot(phi, fastMarchingStartPointListFMM[:,i],
             #                      'phi basin Index'+str(basinIndexList))
-        except ValueError:
-            print('Error in calculating skfmm travel time')
-            print('Error in catchment: ',basinIndexList)
-            print("Oops!  That was no valid number.  Try again...")
-        geodesicDistanceArray[maskedBasin ==1]= travelTimearray[maskedBasin ==1]
     geodesicDistanceArray[maskedBasin ==1]= travelTimearray[maskedBasin ==1]
     geodesicDistanceArray[geodesicDistanceArray==np.Inf]=np.nan
     # Plot the geodesic array
