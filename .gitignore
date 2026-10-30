@@ -1,5 +1,4 @@
 __pycache__/
-*.pyc
 .pytest_cache/
 GeoNet_*.cfg
 project_pointer.cfg
@@ -7,3 +6,6 @@ project_pointer.cfg
 rust/geonet-kernels/target/
 wheelhouse/
 dist/
+# COBOL build products (kernels and shim remain tracked).
+cobol/generated/
+lib/
