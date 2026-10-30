@@ -121,15 +121,14 @@ Stage 5 computes, per qualifying subbasin, the fast-marching travel time from th
 3. **Per-basin travel-time solve.** For each start point: mask the basin, set `phi=1` where flow accumulation ≠ 0, `phi=-1` at the start point, `speed = cost`, then `skfmm.travel_time(phi, speed, dx=0.01)` — **wrapped in `travel_time_with_domain_guard`**, which re-raises scikit-fmm's opaque failures (ValueError/RuntimeError, notably the pre-2021.1.20 "Negative discriminant in time marcher quadratic" abort on rough cost fields, scikit-fmm issue #18) as `FastMarchingDomainError` carrying the catchment index and start point — PR #3. Each solved basin is scattered into the full-raster `geodesicDistanceArray` **inside** the loop — the per-basin scatter was lost in a refactor and restored by PR #4 (without it, only the final basin's distances survived). `∞` becomes NaN at the end; result written as `<dem>_geodesicDistance.tif`.
 4. **Parallelism.** numba `prange` parallelizes the qualification pass; the travel-time loop itself is serial in-process. `dask.distributed.Client` is imported but not used on the current path — a hook from earlier per-basin scatter designs; `psutil` prints RAM usage per solve. Expect minutes on a ~0.7 GB DEM (the module's own banner says 5–7 min).
 
-## Known incompatibilities (documented, deliberately not fixed here)
+## Known incompatibilities
 
 | Where | Trigger | Failure |
 |---|---|---|
-| `pygeonet_channel_head_definition.py` (stage 6), `pygeonet_grass_py2.py` | Python ≥ 3.8 | `from time import clock` → `ImportError` (`time.clock` removed in 3.8) |
-| `pygeonet_skeleton_definition.py` (stage 4) | NumPy ≥ 2.0 | `np.warnings.filterwarnings('ignore')` → `AttributeError` (`np.warnings` removed) |
+| `pygeonet_grass_py2.py` | any Python 3 | the Python-2-only GRASS 7.6 wrapper (`ConfigParser`, `grass.script`) cannot import on Python 3 — by design, not a defect |
 | `pygeonet_vectorio.py` | Python 3, if you call the legacy writers | `xrange` undefined in `write_drainage_paths` / `write_cross_sections` / `write_bank_lines` |
 
-These are upstream-era defects in stages the unit-test suite does not execute; fixing them is a code change outside any docs work. Run the full pipeline under the pinned conda env (Python 3.7.7, NumPy 1.19).
+The former stage-4 (`np.warnings` AttributeError on NumPy ≥ 2) and stage-6 (`from time import clock` ImportError on Python ≥ 3.8) rows were fixed by PR #10 and are regression-guarded by the import-sweep test (`tests/test_import_smoke.py`), which imports every py3-reachable `pygeonet_*.py` module on Python 3.11 with heavy dependencies stubbed. The remaining rows are upstream-era defects in code paths the unit-test suite does not execute. Run the full pipeline under the pinned conda env (Python 3.7.7, NumPy 1.19); stages 4 and 6 additionally run on modern Python (≥ 3.11, NumPy ≥ 2).
 
 ## Legacy boundary
 

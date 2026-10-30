@@ -55,9 +55,8 @@ There is no declared supported version; three different versions are in play:
 |---|---|---|
 | `GeoNetEnv.yml` (full pipeline) | 3.7.7 | The version the 2020-era pins were built for |
 | CI (`ci.yml` unit tests) | 3.11 | Tests only, not the pipeline stages |
-| Stage 6 | **broken on Python ≥ 3.8** | `pygeonet_channel_head_definition.py` has `from time import clock`, which raises `ImportError` on Python ≥ 3.8 |
 
-Stage 4 additionally breaks on **NumPy ≥ 2** (`np.warnings` was removed in NumPy 2.0; `pygeonet_skeleton_definition.py` calls `np.warnings.filterwarnings`). These are known issues documented in [ARCHITECTURE.md](ARCHITECTURE.md); for a working full pipeline use the conda env as pinned (Python 3.7.7).
+Stage 6 runs on any Python 3 again (the unused `from time import clock` was removed in PR #10), and stage 4 runs on NumPy ≥ 2 (the `np.warnings.filterwarnings` call was removed). The CI import-sweep test (`tests/test_import_smoke.py`) imports every py3-reachable `pygeonet_*.py` module on Python 3.11 with heavy dependencies stubbed, so a modern-Python import regression fails the build. The conda env as pinned (Python 3.7.7) remains the only verified end-to-end pipeline baseline; further issues live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Configuration and Setup
 
@@ -158,7 +157,5 @@ Run the numbered stages in order from the repo root. Each stage reads and writes
    ```sh
    python pygeonet_channel_head_definition.py
    ```
-
-   **Known breakage:** this stage fails with `ImportError: cannot import name 'clock' from 'time'` on Python ≥ 3.8.
 
 > Note: further research still needs to be done on the optimal threshold for identifying channel heads. Preliminary studies found a quantile of 0.3 on the skeleton-component histogram (hardcoded in `pygeonet_channel_head_definition.py`) to be sufficient, but this estimate can definitely be improved using analytical methods.
