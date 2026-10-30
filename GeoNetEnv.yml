@@ -134,5 +134,3 @@ dependencies:
     # update quadratic (scikit-fmm issue #18) that aborts the march in
     # 2019.1.30; 2021.7.8 is verified to build and run on Python 3.7.
     - scikit-fmm==2021.7.8
-prefix: C:\Users\alecc\Anaconda3\envs\GeoNetEnv
-

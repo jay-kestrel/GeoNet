@@ -1,4 +1,5 @@
 from __future__ import division
+import warnings
 import numpy as np
 import rasterio
 from rasterio import features
@@ -9,7 +10,7 @@ from pygeonet_plot import *
 # Skeleton by thresholding one grid measure e.g. flow or curvature
 def compute_skeleton_by_single_threshold(inputArray, threshold):
     skeletonArray = np.zeros((inputArray.shape))
-    np.warnings.filterwarnings('ignore')
+    warnings.filterwarnings('ignore')
     skeletonArray[np.where(inputArray > threshold)] = 1
     return skeletonArray
 
