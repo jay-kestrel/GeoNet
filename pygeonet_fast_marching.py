@@ -149,7 +149,7 @@ def Fast_Marching(fastMarchingStartPointListFMM, basinIndexArray, flowArray, rec
     print('Performing fast marching')
     # Do fast marching for each sub basin
     geodesicDistanceArray = np.zeros((basinIndexArray.shape))
-    geodesicDistanceArray[geodesicDistanceArray==0]=np.Inf
+    geodesicDistanceArray[geodesicDistanceArray==0]=np.inf
     for i in range(0,len(fastMarchingStartPointListFMM[0])):
         basinIndexList = basinIndexArray[fastMarchingStartPointListFMM[0,i],
                                          fastMarchingStartPointListFMM[1,i]]
@@ -192,8 +192,9 @@ def Fast_Marching(fastMarchingStartPointListFMM, basinIndexArray, flowArray, rec
                 #plt.contour(speed,cmap=cm.coolwarm)
             #    raster_point_plot(phi, fastMarchingStartPointListFMM[:,i],
             #                      'phi basin Index'+str(basinIndexList))
+        geodesicDistanceArray[maskedBasin ==1]= travelTimearray[maskedBasin ==1]
     geodesicDistanceArray[maskedBasin ==1]= travelTimearray[maskedBasin ==1]
-    geodesicDistanceArray[geodesicDistanceArray==np.Inf]=np.nan
+    geodesicDistanceArray[geodesicDistanceArray==np.inf]=np.nan
     # Plot the geodesic array
     #if defaults.doPlot == 1:
     #    geodesic_contour_plot(geodesicDistanceArray,
