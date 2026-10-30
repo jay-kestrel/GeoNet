@@ -1,18 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Run-only by design: repository policy rejects actions not owned by jay-kestrel.
 name: ci
 on:
   push:
     branches: [master, develop]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install test dependencies (numba stack for the stage-5 kernel tests)
-        run: pip install numpy numba scikit-fmm matplotlib dask distributed rasterio psutil
+      - name: Check out the event commit (public repository; no credentials stored)
+        run: |
+          git init .
+          git config core.autocrlf false
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install test dependencies with the runner Python
+        run: |
+          python3 --version
+          python3 -m venv "$RUNNER_TEMP/test-env"
+          "$RUNNER_TEMP/test-env/bin/python" -m pip install numpy numba scikit-fmm matplotlib dask distributed rasterio psutil pytest tifffile
+          echo "$RUNNER_TEMP/test-env/bin" >> "$GITHUB_PATH"
       - name: Run test suite (GRASS-dependent smoke test auto-skips)
-        run: python -m unittest discover -s tests -v
+        run: python -m pytest tests -v

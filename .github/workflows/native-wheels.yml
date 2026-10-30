@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Run-only by design: repository policy rejects actions not owned by jay-kestrel.
+name: native-wheels
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rust:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out the event commit (public repository; no credentials stored)
+        run: |
+          git init .
+          git config core.autocrlf false
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install Rust and system Python development libraries
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+          sudo apt-get update
+          sudo apt-get install -y python3-dev
+      - name: Rust format, lint, and unit tests (not extension-module linking)
+        env:
+          PYO3_PYTHON: /usr/bin/python3
+        run: |
+          cargo fmt --manifest-path rust/geonet-kernels/Cargo.toml -- --check
+          cargo clippy --locked --manifest-path rust/geonet-kernels/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path rust/geonet-kernels/Cargo.toml
+      - name: Check dependency license allowlist
+        run: |
+          cargo metadata --locked --manifest-path rust/geonet-kernels/Cargo.toml --format-version 1 > dependencies.json
+          python3 tools/check_native_licenses.py dependencies.json
+
+  python37:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out the event commit (public repository; no credentials stored)
+        run: |
+          git init .
+          git config core.autocrlf false
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      # Same channel/solver recipe as the verified local 3.7.7 environment.
+      - name: Install exact Python 3.7.7 through the standalone micromamba CLI
+        env:
+          MAMBA_ROOT_PREFIX: ${{ runner.temp }}/mamba
+        run: |
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/micromamba" \
+            https://github.com/mamba-org/micromamba-releases/releases/download/2.10.0-0/micromamba-linux-64
+          echo "701f39c06f8e6a670a0e186c8479b9e5c0502a2f0cda6cef65d83bdd2875e8bd  $RUNNER_TEMP/micromamba" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/micromamba"
+          "$RUNNER_TEMP/micromamba" create --yes --prefix "$RUNNER_TEMP/native37" \
+            --override-channels --channel https://repo.anaconda.com/pkgs/main python=3.7.7 pip
+          echo "$RUNNER_TEMP/native37/bin" >> "$GITHUB_PATH"
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build, install, and test with Python 3.7.7 and baseline NumPy
+        run: |
+          python -c 'import sys; assert sys.version_info[:3] == (3, 7, 7)'
+          python -m pip install maturin==1.16.0 numpy==1.19.1 pytest==7.4.4 tifffile==2021.11.2
+          maturin build --release --interpreter "$(command -v python)" --out wheelhouse
+          python -m pip install --no-deps wheelhouse/*.whl
+          python -c 'import geonet_kernels; print(geonet_kernels.__file__)'
+          python -m pytest tests/test_kernel_dispatch.py tests/test_native_scaffold.py tests/test_golden_helpers.py
+          maturin sdist --out dist
+      - name: Audit local wheel and record build-file hashes in the job log
+        run: |
+          python tools/check_native_wheels.py wheelhouse --family manylinux
+          sha256sum dist/*.tar.gz
+
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            family: manylinux
+          - os: macos-15-intel
+            family: macosx
+          - os: windows-latest
+            family: win_amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out the event commit (public repository; no credentials stored)
+        run: |
+          git init .
+          git config core.autocrlf false
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install Rust and the cibuildwheel CLI using the runner Python
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          python --version
+          python -m pip install cibuildwheel==2.23.3
+      # 2.23.3 acquires CPython 3.7 itself; no interpreter-setup action is needed.
+      - name: Build and test platform wheels
+        env:
+          CIBW_BUILD: "cp37-manylinux_x86_64 cp37-macosx_x86_64 cp37-win_amd64"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal"
+          CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+          CIBW_TEST_REQUIRES: "pytest==7.4.4 numpy==1.19.1"
+          CIBW_TEST_COMMAND: 'python -c "import geonet_kernels" && python -m pytest {project}/tests/test_native_scaffold.py -q'
+        run: python -m cibuildwheel --output-dir wheelhouse
+      # Audit before the job exits: no artifact-transfer actions or cross-job files.
+      - name: Verify platform, native module, ABI, license, and log SHA-256 hashes
+        env:
+          WHEEL_FAMILY: ${{ matrix.family }}
+        run: python tools/check_native_wheels.py wheelhouse --family "$WHEEL_FAMILY"
