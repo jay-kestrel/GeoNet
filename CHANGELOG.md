@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `docs:` comprehensive documentation refresh — README accuracy pass (stage-3 command fix, GRASS 8.x, pinned scikit-fmm install, Python-floor statement, GRASS GIS install pointer), `SETUP.md` (full-pipeline vs test-only environments, `requirements.txt` is a conda `@EXPLICIT` spec), `ARCHITECTURE.md` (six-stage pipeline, module coupling, GRASS session dispatch, stage-5 numerics, legacy boundaries), `docs/algorithm_spec.md` (algorithm and full `pygeonet_defaults` parameter catalog), `docs/usage.md` (per-script CLIs and the importable helper surface), `CONTRIBUTING.md`, and this changelog.
 
+#### Removed
+
+- The Python-2-only stage-3 GRASS wrapper `pygeonet_grass_py2.py` (superseded by `pygeonet_grass_py3.py`; imported by nothing).
+- The leaked local `prefix:` line from the `GeoNetEnv.yml` conda export.
+
 #### Fixed
 
 - **GRASS 8.x support** ([#1](https://github.com/jay-kestrel/GeoNet/pull/1)): stage 3 now supports GRASS GIS 8.x alongside 7.8 — `pygeonet_grass_session.py` detects the major version and dispatches between the incompatible `gsetup.init` signatures; GRASS 8 location creation uses `g.create_location` from the filtered DEM.

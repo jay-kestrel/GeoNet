@@ -61,7 +61,7 @@ Stage 3 looks for the GRASS start script:
 | Windows | `C:\OSGeo4W64\bin\grass78.bat` |
 | macOS | `/Applications/GRASS/GRASS-7.8.app/` |
 
-On Windows/macOS the path is hardcoded in `pygeonet_grass_py3.py` — adjust it there if your install differs. GRASS 7.6 works only with the legacy `pygeonet_grass_py2.py` (Python 2, unsupported).
+On Windows/macOS the path is hardcoded in `pygeonet_grass_py3.py` — adjust it there if your install differs. GRASS 7.6 is not supported: its legacy `pygeonet_grass_py2.py` wrapper was Python 2 code and has been removed.
 
 ### 3. Runtime requirements of stage 3
 

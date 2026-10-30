@@ -45,7 +45,7 @@ Stage 3 requires a GRASS GIS **system** install, separate from the conda env:
 
 - Download the official release from <https://grass.osgeo.org/download/>.
 - **GRASS 7.8 and 8.x are both supported** (8.x support was added by PR #1 via the version-dispatch in `pygeonet_grass_session.py`). Stage 3 probes `grass`, `grass84`, and `grass78` start scripts on Linux and detects the major version at runtime.
-- GRASS 7.6 is only supported by the legacy `pygeonet_grass_py2.py` wrapper, which is Python 2 code and **unsupported** — do not use it.
+- GRASS 7.6 is not supported: its legacy `pygeonet_grass_py2.py` wrapper was Python 2 code and has been removed.
 
 ### Python floor — read before choosing an interpreter
 
@@ -138,7 +138,7 @@ Run the numbered stages in order from the repo root. Each stage reads and writes
    python pygeonet_grass_py3.py
    ```
 
-   Works with GRASS GIS 7.8 and 8.x (detected at runtime). The `python pygeonet_grass_py2.py` wrapper shown by older READMEs is Python 2 code and unsupported.
+   Works with GRASS GIS 7.8 and 8.x (detected at runtime). The `python pygeonet_grass_py2.py` wrapper shown by older READMEs was Python 2 code and has been removed.
 
 4. Flow-accumulation and curvature skeleton:
 

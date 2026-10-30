@@ -121,19 +121,21 @@ Stage 5 computes, per qualifying subbasin, the fast-marching travel time from th
 3. **Per-basin travel-time solve.** For each start point: mask the basin, set `phi=1` where flow accumulation ≠ 0, `phi=-1` at the start point, `speed = cost`, then `skfmm.travel_time(phi, speed, dx=0.01)` — **wrapped in `travel_time_with_domain_guard`**, which re-raises scikit-fmm's opaque failures (ValueError/RuntimeError, notably the pre-2021.1.20 "Negative discriminant in time marcher quadratic" abort on rough cost fields, scikit-fmm issue #18) as `FastMarchingDomainError` carrying the catchment index and start point — PR #3. Each solved basin is scattered into the full-raster `geodesicDistanceArray` **inside** the loop — the per-basin scatter was lost in a refactor and restored by PR #4 (without it, only the final basin's distances survived). `∞` becomes NaN at the end; result written as `<dem>_geodesicDistance.tif`.
 4. **Parallelism.** numba `prange` parallelizes the qualification pass; the travel-time loop itself is serial in-process. `dask.distributed.Client` is imported but not used on the current path — a hook from earlier per-basin scatter designs; `psutil` prints RAM usage per solve. Expect minutes on a ~0.7 GB DEM (the module's own banner says 5–7 min).
 
-## Known incompatibilities
+## Historical incompatibilities (all resolved)
 
-| Where | Trigger | Failure |
-|---|---|---|
-| `pygeonet_grass_py2.py` | any Python 3 | the Python-2-only GRASS 7.6 wrapper (`ConfigParser`, `grass.script`) cannot import on Python 3 — by design, not a defect |
-| `pygeonet_vectorio.py` | Python 3, if you call the legacy writers | `xrange` undefined in `write_drainage_paths` / `write_cross_sections` / `write_bank_lines` |
+The upstream-era defects documented here have all been fixed on the fork:
 
-The former stage-4 (`np.warnings` AttributeError on NumPy ≥ 2) and stage-6 (`from time import clock` ImportError on Python ≥ 3.8) rows were fixed by PR #10 and are regression-guarded by the import-sweep test (`tests/test_import_smoke.py`), which imports every py3-reachable `pygeonet_*.py` module on Python 3.11 with heavy dependencies stubbed. The remaining rows are upstream-era defects in code paths the unit-test suite does not execute. Run the full pipeline under the pinned conda env (Python 3.7.7, NumPy 1.19); stages 4 and 6 additionally run on modern Python (≥ 3.11, NumPy ≥ 2).
+- **Stage 6, `pygeonet_channel_head_definition.py`** — the unused `from time import clock` raised `ImportError` on Python ≥ 3.8; removed by PR #10. The module now imports on any Python 3.
+- **Stage 4, `pygeonet_skeleton_definition.py`** — `np.warnings.filterwarnings('ignore')` raised `AttributeError` on NumPy ≥ 2.0; replaced with the stdlib `warnings` module by PR #10. The threshold path runs on modern NumPy.
+- **`pygeonet_vectorio.py` legacy writers** — Python-2 `xrange` loops in `write_drainage_paths` / `write_cross_sections` / `write_bank_lines` raised `NameError` on Python 3; replaced with `range` by PR #10.
+- **`pygeonet_grass_py2.py`** — the Python-2-only stage-3 wrapper could never import on Python 3; removed.
+
+`tests/test_import_smoke.py` (added by PR #10) guards the first three: it imports every `pygeonet_*.py` module on Python 3 and runs the stage-4 threshold path against real NumPy. The pinned conda env (Python 3.7.7, NumPy 1.19) remains the supported full-pipeline baseline; stages 4 and 6 additionally run on modern Python.
 
 ## Legacy boundary
 
 - **`Old_Version/`** — ten upstream scripts (flow accumulation, network delineation, hydro flattening, …) superseded by the numbered pipeline. Unsupported; kept for lineage.
-- **`pygeonet_grass_py2.py`** — Python 2-only stage-3 wrapper (`ConfigParser`, `time.clock`, `print >>`) targeting GRASS 7.6. Unsupported; stage 3 is `pygeonet_grass_py3.py`.
+- **`pygeonet_grass_py2.py` (removed)** — the Python-2-only stage-3 wrapper targeting GRASS 7.6 was deleted; stage 3 is `pygeonet_grass_py3.py` (GRASS 7.8/8.x).
 - **`GeoFlood` naming** — config keys (`geofloodhomedir`), the prepare docstring (`GeoFlood_<project>.cfg`), and cfg-path variables carry the GeoFlood name: GeoNet and GeoFlood share a workflow origin. `pygeonet_configure.py` actually writes `GeoNet_<project>.cfg`.
 
 ## Tests
@@ -146,6 +148,7 @@ The former stage-4 (`np.warnings` AttributeError on NumPy ≥ 2) and stage-6 (`f
 | `test_fast_marching.py` | domain guard + travel-time helper — stubs gdal/rasterio/matplotlib/numba/dask/psutil in `sys.modules` |
 | `test_stage5_determinism.py`, `test_stage5_scatter.py` | numba kernel determinism and the per-basin scatter (PR #2/#4 regressions) |
 | `test_setup_scripts.py` | `check_setup` cfg resolution/validation, `envinfo` report |
+| `test_import_smoke.py` | imports every `pygeonet_*.py` module on Python 3 (heavy deps stubbed) and runs the stage-4 threshold path on real NumPy (PR #10 regressions) |
 
 Design rule: tests need only numpy + scikit-fmm + stdlib. Heavy dependencies are stubbed at import time and GRASS is mocked, so the suite runs green in the plain-pip environment of [SETUP.md](SETUP.md) Path B — that is the environment CI runs (Python 3.11), with no GDAL or GRASS present.
 
