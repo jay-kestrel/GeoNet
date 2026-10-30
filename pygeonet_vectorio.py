@@ -102,7 +102,7 @@ def write_drainage_paths(geodesicPathsCellList):
         feature.SetField("Type", 'ChannelNetwork')
         # create the WKT for the feature using Python string formatting
         line = ogr.Geometry(ogr.wkbLineString)
-        for j in xrange(0, len(xxProj)):
+        for j in range(0, len(xxProj)):
             line.AddPoint(xxProj[j], yyProj[j])
         # Create the point from the Well Known Txt
         # lineobject = line.ExportToWkt()
@@ -151,7 +151,7 @@ def write_cross_sections(TotalcrossSectionsXYArray, XSIDArray):
         feature.SetField("Type", 'CrossSection')
         feature.SetField("ID", XSIDArray[i])
         line = ogr.Geometry(ogr.wkbLineString)
-        for j in xrange(0, len(xxProj)):
+        for j in range(0, len(xxProj)):
             line.AddPoint(xxProj[j], yyProj[j])
         feature.SetGeometryDirectly(line)
         layer.CreateFeature(feature)
@@ -192,7 +192,7 @@ def write_bank_lines(leftBankCellList, rightBankCellList):
         else:
             BankCellList = rightBankCellList
             Bank = 'Right'
-        for i in range(0, len(leftBankCellList)):
+        for i in range(0, len(BankCellList)):
             xx = BankCellList[i][1]
             yy = BankCellList[i][0]
             xxProj = (float(gtf[0]) +
@@ -203,7 +203,7 @@ def write_bank_lines(leftBankCellList, rightBankCellList):
             feature.SetField("Type", "Bank")
             feature.SetField("Type", Bank)
             line = ogr.Geometry(ogr.wkbLineString)
-            for j in xrange(0, len(xxProj)):
+            for j in range(0, len(xxProj)):
                 line.AddPoint(xxProj[j], yyProj[j])
             feature.SetGeometryDirectly(line)
             layer.CreateFeature(feature)
