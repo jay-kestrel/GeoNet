@@ -12,5 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install numerical stack (fast-marching regression tests)
+        run: pip install numpy scipy scikit-fmm
       - name: Run test suite (GRASS-dependent smoke test auto-skips)
         run: python -m unittest discover -s tests -v

@@ -6,30 +6,26 @@ Reproduces the GeoNet fast-marching call shape
 
 On scikit-fmm 2019.1.30 these inputs abort the whole march with an opaque
 "Negative discriminant in time marcher quadratic." RuntimeError (upstream
-scikit-fmm issue #18). On the pinned 2021.7.8 the march completes; the
-domain guard converts any residual opaque failure into
-FastMarchingDomainError with catchment context.
+scikit-fmm issue #18). On the pinned 2021.7.8 (and any release >= 2021.1.20)
+the march completes; the domain guard converts any residual opaque failure
+into FastMarchingDomainError with catchment context.
 
 The heavy geospatial imports of the GeoNet modules (gdal, rasterio,
 matplotlib, numba, dask, psutil) are stubbed so the test only needs
-numpy + skfmm + pytest.
+numpy + skfmm + the standard library.
 """
 import os
 import sys
 import types
+import unittest
 
-import numpy as np
-import pytest
-
-# Make the repo root importable regardless of pytest rootdir.
+# Make the repo root importable regardless of the test runner's rootdir.
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _install_stub_modules():
     """Stub GeoNet's heavy geospatial dependencies before import."""
-    stubs = {}
-
     def plain_module(name):
         module = types.ModuleType(name)
         sys.modules[name] = module
@@ -74,30 +70,14 @@ def _install_stub_modules():
     # pygeonet_prepare parses the project cfg at import time and crashes
     # without one; the domain guard under test needs none of it.
     prepare = plain_module('pygeonet_prepare')
-    prepare.Parameters = prepare
     plain_module('pygeonet_defaults')
-
-    stubs.update(osgeo=osgeo, rasterio=rasterio, matplotlib=matplotlib,
-                 numba=numba, psutil=psutil, dask=dask,
-                 pygeonet_prepare=prepare)
-    return stubs
 
 
 _install_stub_modules()
 
+import numpy as np  # noqa: E402
 import skfmm  # noqa: E402
 import pygeonet_fast_marching as fmm  # noqa: E402
-
-
-def build_geonet_style_inputs(shape, cost, start, flow_mask):
-    """Build phi/speed exactly like Fast_Marching does per catchment."""
-    phi = np.zeros(shape)
-    speed = np.zeros(shape)
-    phi[flow_mask] = 1
-    speed[flow_mask] = cost[flow_mask]
-    phi[start] = -1
-    return phi, speed
-
 
 # The reproduced failing input: rough (high local contrast) speed field on a
 # half-domain basin. On skfmm 2019.1.30 this raises
@@ -105,57 +85,66 @@ def build_geonet_style_inputs(shape, cost, start, flow_mask):
 REPRO_SHAPE = (200, 200)
 
 
-def build_repro_cost():
+def build_repro_inputs():
+    """Build the phi/speed pair exactly like Fast_Marching does per catchment."""
     yy, xx = np.mgrid[0:REPRO_SHAPE[0], 0:REPRO_SHAPE[1]]
     flow_mask = xx < REPRO_SHAPE[1] // 2
-    cost = np.random.RandomState(0).uniform(
-        0.1, 1.0, size=REPRO_SHAPE)
-    return cost, flow_mask, (REPRO_SHAPE[0] // 2, 0)
+    cost = np.random.RandomState(0).uniform(0.1, 1.0, size=REPRO_SHAPE)
+    phi = np.zeros(REPRO_SHAPE)
+    speed = np.zeros(REPRO_SHAPE)
+    phi[flow_mask] = 1
+    speed[flow_mask] = cost[flow_mask]
+    start = (REPRO_SHAPE[0] // 2, 0)
+    phi[start] = -1
+    return phi, speed, flow_mask, start
 
 
-def test_repro_input_completes_on_pinned_skfmm():
-    """The reproduced negative-discriminant input completes the march."""
-    cost, flow_mask, start = build_repro_cost()
-    phi, speed = build_geonet_style_inputs(REPRO_SHAPE, cost, start, flow_mask)
-    travel_time = skfmm.travel_time(phi, speed, dx=.01)
-    assert np.all(np.isfinite(travel_time[flow_mask]))
-    # the march completed and produced a bounded, positive travel-time field
-    assert 0 < np.nanmax(travel_time) < np.inf
+class ReproInputCompletesOnPinnedSkfmmTests(unittest.TestCase):
+    def test_rough_cost_field_completes_the_march(self):
+        """The reproduced negative-discriminant input completes the march."""
+        phi, speed, flow_mask, start = build_repro_inputs()
+        travel_time = skfmm.travel_time(phi, speed, dx=.01)
+        self.assertTrue(np.all(np.isfinite(travel_time[flow_mask])))
+        # the march completed and produced a bounded, positive field
+        self.assertGreater(float(np.nanmax(travel_time)), 0.0)
+        self.assertLess(float(np.nanmax(travel_time)), float('inf'))
 
 
-def test_guard_wraps_opaque_skfmm_failure_with_context():
-    """Opaque skfmm RuntimeError becomes FastMarchingDomainError with context."""
-    cost, flow_mask, start = build_repro_cost()
-    phi, speed = build_geonet_style_inputs(REPRO_SHAPE, cost, start, flow_mask)
+class GuardWrapsFailuresWithContextTests(unittest.TestCase):
+    def test_opaque_runtime_error_becomes_domain_error(self):
+        """Opaque skfmm RuntimeError becomes FastMarchingDomainError."""
+        phi, speed, flow_mask, start = build_repro_inputs()
 
-    def failing_travel_time(*args, **kwargs):
-        raise RuntimeError(
-            'Negative discriminant in time marcher quadratic.')
+        def failing_travel_time(*args, **kwargs):
+            raise RuntimeError(
+                'Negative discriminant in time marcher quadratic.')
 
-    original = skfmm.travel_time
-    skfmm.travel_time = failing_travel_time
-    try:
-        with pytest.raises(fmm.FastMarchingDomainError) as excinfo:
+        original = skfmm.travel_time
+        skfmm.travel_time = failing_travel_time
+        try:
+            with self.assertRaises(fmm.FastMarchingDomainError) as ctx:
+                fmm.travel_time_with_domain_guard(
+                    phi, speed, dx=.01, catchmentIndex=7, startPoint=start)
+        finally:
+            skfmm.travel_time = original
+        message = str(ctx.exception)
+        self.assertIn('catchment 7', message)
+        self.assertIn('({0}, {1})'.format(*start), message)
+        self.assertIn('Negative discriminant in time marcher quadratic.',
+                      message)
+        # the underlying error stays chained, nothing is swallowed
+        self.assertIsNotNone(ctx.exception.__cause__)
+
+    def test_degenerate_phi_valueerror_becomes_domain_error(self):
+        """skfmm's degenerate-input ValueError is surfaced as a domain error."""
+        phi = np.ones((10, 10))
+        speed = np.ones((10, 10))
+        # no monkeypatch needed: phi has no zero contour, skfmm raises ValueError
+        with self.assertRaises(fmm.FastMarchingDomainError) as ctx:
             fmm.travel_time_with_domain_guard(
-                phi, speed, dx=.01, catchmentIndex=7, startPoint=start)
-    finally:
-        skfmm.travel_time = original
-    message = str(excinfo.value)
-    assert 'catchment 7' in message
-    assert '({0}, {1})'.format(*start) in message
-    assert 'Negative discriminant in time marcher quadratic.' in message
-    # the underlying error stays chained, nothing is swallowed
-    assert excinfo.value.__cause__ is not None
+                phi, speed, dx=.01, catchmentIndex=1, startPoint=(0, 0))
+        self.assertIn('catchment 1', str(ctx.exception))
 
 
-def test_guard_wraps_degenerate_phi_valueerror_with_context():
-    """skfmm's degenerate-input ValueError is surfaced as a domain error."""
-    shape = (10, 10)
-    phi = np.ones(shape)
-    speed = np.ones(shape)
-
-    # no monkeypatch needed: phi has no zero contour, skfmm raises ValueError
-    with pytest.raises(fmm.FastMarchingDomainError) as excinfo:
-        fmm.travel_time_with_domain_guard(
-            phi, speed, dx=.01, catchmentIndex=1, startPoint=(0, 0))
-    assert 'catchment 1' in str(excinfo.value)
+if __name__ == '__main__':
+    unittest.main()
