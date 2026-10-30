@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Run-only by design: repository policy rejects actions not owned by jay-kestrel.
+name: julia
+on:
+  push:
+    branches: [master, develop]
+    paths: ['julia/**', '.github/workflows/julia.yml']
+  pull_request:
+    paths: ['julia/**', '.github/workflows/julia.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  JULIA_NUM_THREADS: auto
+
+jobs:
+  julia-equivalence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the event commit (public repository; no credentials stored)
+        run: |
+          git init .
+          git config core.autocrlf false
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install pinned Julia release from the official CDN
+        run: |
+          JULIA_VERSION=1.13.3
+          JULIA_SHA256=5c61cb4b40332cb5a3504e7779e2f5dac093caa4a1116ded19f01413f85c63e4
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/julia.tar.gz" \
+            "https://julialang-s3.julialang.org/bin/linux/x64/${JULIA_VERSION%.*}/julia-${JULIA_VERSION}-linux-x86_64.tar.gz"
+          echo "${JULIA_SHA256}  $RUNNER_TEMP/julia.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/julia.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/julia-$JULIA_VERSION/bin" >> "$GITHUB_PATH"
+          julia --version
+      - name: Run the Julia equivalence suite
+        run: julia --project=julia -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
