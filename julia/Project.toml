@@ -1,0 +1,12 @@
+name = "GeoNetPorts"
+uuid = "04586c37-60d8-4688-b1d8-5c9f25af11c4"
+authors = ["Obvious <obvious@obvious.ai>"]
+version = "0.1.0"
+
+[extras]
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "NPZ", "SHA"]

@@ -1,0 +1,7 @@
+{
+  "dx": 0.01,
+  "masked_cells": 11888,
+  "numpy_version": "2.3.5",
+  "order": 2,
+  "skfmm_version": "2025.06.23"
+}
