@@ -68,6 +68,32 @@ contains CPython 3.7. A separate job builds on **exactly 3.7.7**; wheel-platform
 jobs use their available 3.7 patch release. These build checks do not certify
 scientific parity or full GeoNet compatibility on every platform.
 
+## Run-only CI is intentional
+
+Both workflows contain only shell steps. On 2026-10-30, GitHub rejected even
+first-party actions with the policy clause “all actions must be from a repository
+owned by jay-kestrel” ([test job](https://github.com/jay-kestrel/GeoNet/actions/runs/41112648418/job/124258693275),
+[Windows wheel job](https://github.com/jay-kestrel/GeoNet/actions/runs/41112648627/job/124258694491)).
+Do not replace these steps with third-party or first-party Actions without an
+administrator-authorized policy change.
+
+Shell checkout fetches the exact event SHA from this public repository, without
+persisting credentials. Rust uses the runner's `rustup`; cibuildwheel 2.23.3 runs
+as a Python CLI and acquires its own build interpreters. The exact-3.7.7 job uses
+the locally verified Anaconda-channel recipe via a checksum-pinned standalone
+micromamba 2.10.0-0 binary, not the micromamba Action. The binary URL and SHA-256
+were retrieved from its GitHub release metadata on 2026-10-30. The separate full
+pytest job uses Ubuntu 22.04's runner Python in an isolated virtual environment;
+it is not the frozen benchmark environment.
+
+Each matrix job audits its own platform wheel's native module, cp37 ABI, and GPL
+license, then prints its path and SHA-256. The exact-interpreter job also logs the
+sdist hash; command failures retain their nonzero job status. This preserves
+build/test coverage but gives up downloadable workflow artifacts and a combined
+cross-platform artifact audit. All matrix jobs must pass. An administrator
+allowlist could restore conventional Actions and artifact delivery later; that
+policy preference is outside this PR.
+
 ## Dispatch contract
 
 `pygeonet_kernels.py` reads `GEONET_KERNELS` on every call. `python` forwards to
