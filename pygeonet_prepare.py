@@ -42,7 +42,11 @@ if os.path.exists(try_path):
 else:
 	project_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 	"GeoNet*.cfg")
-	project_cfg_path = glob.glob(project_cfg_path)[0]
+	globbed_cfg_paths = glob.glob(project_cfg_path)
+	if not globbed_cfg_paths:
+		sys.exit("No GeoNet_*.cfg project configuration found next to "
+		         "pygeonet_prepare.py. Run pygeonet_configure.py first.")
+	project_cfg_path = globbed_cfg_paths[0]
 # Read project specific cfg name and define base variables
 config2 = configparser.ConfigParser()
 config2.read(project_cfg_path)

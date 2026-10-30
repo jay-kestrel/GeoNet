@@ -1,4 +1,5 @@
 from __future__ import division
+import sys
 import numpy as np
 import scipy.signal as conv2
 from time import perf_counter 
@@ -142,8 +143,8 @@ def main():
                                       Parameters.demPixelScale), 1)
 
     else:
-        print((defaults.diffusionMethod+" filter is not available in the"))
-        "current version GeoNet"   
+        sys.exit(defaults.diffusionMethod +
+                 " filter is not available in the current version GeoNet")
     # plot the filtered DEM
     #if defaults.doPlot == 1:
     #    raster_plot(filteredDemArray, 'Filtered DEM')
