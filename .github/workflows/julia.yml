@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Run-only by design: repository policy rejects actions not owned by jay-kestrel,
+# so this workflow uses no `uses:` steps — inline checkout and a pinned Julia
+# install from the official CDN.
+name: julia
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  JULIA_VERSION: 1.11.1
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out the event commit (public repository; no credentials stored)
+        run: |
+          git init .
+          git config core.autocrlf false
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install pinned Julia from the official CDN
+        run: |
+          cd "$RUNNER_TEMP"
+          minor="${JULIA_VERSION%.*}"
+          curl -fsSLO "https://julialang-s3.julialang.org/bin/linux/x64/${minor}/julia-${JULIA_VERSION}-linux-x86_64.tar.gz"
+          tar -xzf "julia-${JULIA_VERSION}-linux-x86_64.tar.gz"
+          mv "julia-${JULIA_VERSION}" julia
+          ./julia/bin/julia --version
+          echo "$RUNNER_TEMP/julia/bin" >> "$GITHUB_PATH"
+      - name: Run the GeoNetPorts test suite
+        run: |
+          cd julia
+          julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
