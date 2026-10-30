@@ -5,6 +5,7 @@ from pygeonet_rasterio import *
 from pygeonet_vectorio import *
 from pygeonet_plot import *
 from numba import jit
+import pygeonet_kernels
 
 def select_skeleton_size_threshold(skeletonNumElementsHistogramX):
     """Component-size threshold from the size histogram's bin edges.
@@ -152,7 +153,6 @@ def Channel_Head_Definition(skeletonFromFlowAndCurvatureArray, geodesicDistanceA
     write_geotif_generic(channelheadArray,\
                          outfilepath,outfilename)
     return xx, yy
-
 def main():
     outfilepath = Parameters.geonetResultsDir
     demName = Parameters.demFileName.split('.')[0]
@@ -160,11 +160,48 @@ def main():
     skeletonFromFlowAndCurvatureArray = read_geotif_generic(outfilepath, skeleton_filename)[0]
     geodesic_filename = demName+'_geodesicDistance.tif'
     geodesicDistanceArray = read_geotif_generic(outfilepath, geodesic_filename)[0]
-    Channel_Head_Definition(skeletonFromFlowAndCurvatureArray, geodesicDistanceArray)
+    if pygeonet_kernels._native_module() is None:
+        # Python fallback: Channel_Head_Definition keeps its own plotting and
+        # raster/vector writes.
+        pygeonet_kernels.find_channel_heads(skeletonFromFlowAndCurvatureArray,
+                                            geodesicDistanceArray)
+    else:
+        # Native kernel is compute-only; plotting and raster/vector writes
+        # stay Python-side, mirroring the original function's outputs.
+        xx, yy = pygeonet_kernels.find_channel_heads(
+            skeletonFromFlowAndCurvatureArray, geodesicDistanceArray)
+        _write_channel_head_outputs(skeletonFromFlowAndCurvatureArray,
+                                    geodesicDistanceArray, xx, yy)
+
+
+def _write_channel_head_outputs(skeletonFromFlowAndCurvatureArray,
+                                geodesicDistanceArray, xx, yy):
+    """Native path: the output half of the original function, Python-side."""
+    skeletonEndPointsListArray = np.stack([yy, xx])
+    if defaults.doPlot == 1:
+        raster_point_plot(skeletonFromFlowAndCurvatureArray, skeletonEndPointsListArray,
+                          'Skeleton Num elements Array with channel heads', cm.binary, 'ro')
+    if defaults.doPlot == 1:
+        raster_point_plot(geodesicDistanceArray, skeletonEndPointsListArray,
+                          'Geodesic distance Array with channel heads', cm.coolwarm, 'ro')
+    # Write shapefiles of channel heads
+    write_drainage_nodes(xx,yy,"ChannelHead",
+                         Parameters.pointFileName,Parameters.pointshapefileName)
+    # Write raster of channel heads
+    channelheadArray = np.zeros((geodesicDistanceArray.shape))
+    channelheadArray[yy, xx] = 1
+    outfilepath = Parameters.geonetResultsDir
+    demName = Parameters.demFileName
+    outfilename = demName.split('.')[0]+'_channelHeads.tif'
+    write_geotif_generic(channelheadArray,\
+                         outfilepath,outfilename)
+
+
+
 
 
 if __name__ == '__main__':
     t0 = time.perf_counter()
     main()
     t1 = time.perf_counter()
-    print(f'time taken to complete channel head definition: {t1-t0} seconds')
+    print(f'time taken to complete channel head definition: {t1-t0} seconds')
