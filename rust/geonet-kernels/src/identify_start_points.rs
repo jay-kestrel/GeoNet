@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use ndarray::{s, ArrayView2};
 use numpy::{Element, PyArray1, PyReadonlyArray2, PyUntypedArray};
-use pyo3::exceptions::{PyTypeError, PyZeroDivisionError};
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
 
@@ -104,9 +104,6 @@ pub fn identify_start_points(
     threshold: f64,
     iter_total: usize,
 ) -> PyResult<Py<PyArray1<bool>>> {
-    if iter_total > 0 && nDempixels == 0.0 {
-        return Err(PyZeroDivisionError::new_err("division by zero"));
-    }
     macro_rules! dispatch {
         ($($kind:ty),+) => {$(
             if let Ok(array) = basinIndexArray.extract::<PyReadonlyArray2<'_, $kind>>() {
@@ -146,6 +143,12 @@ mod tests {
         let basins = array![[f64::NAN, f64::INFINITY, -1.0, 0.0, 1.5, 1.0, 2.0]];
         assert_eq!(count_basins(basins.view(), 1), [1]);
         assert_eq!(select_basins(&[1], 100.00001, 0, 1.0), [false]);
+    }
+
+    #[test]
+    fn zero_area_preserves_parallel_numba_ieee_division() {
+        assert_eq!(select_basins(&[1, 0], 0.0, 0, 0.0), [true, false]);
+        assert_eq!(select_basins(&[1, 0], -0.0, 0, 0.0), [false, false]);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Build-only scaffold: the pipeline does not call these kernels yet.
+//! Compute-only kernels; unported entrypoints remain explicit scaffolds.
 
 mod find_channel_heads;
 mod identify_start_points;
