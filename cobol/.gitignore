@@ -1,0 +1,4 @@
+# cobc -C generation products (rebuilt by `make -C cobol lib`)
+nonlinear_filter.c
+nonlinear_filter.c.h
+nonlinear_filter.c.l.h

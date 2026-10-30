@@ -16,7 +16,9 @@ defaults:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    # ubuntu-latest (24.04) so apt gnucobol3 is 3.2.x - the GnuCOBOL version the
+    # COBOL kernel was validated against; 22.04 ships a 3.0-rc toolchain.
+    runs-on: ubuntu-latest
     steps:
       - name: Check out the event commit (public repository; no credentials stored)
         run: |
@@ -30,7 +32,32 @@ jobs:
         run: |
           python3 --version
           python3 -m venv "$RUNNER_TEMP/test-env"
-          "$RUNNER_TEMP/test-env/bin/python" -m pip install numpy numba scikit-fmm matplotlib dask distributed rasterio psutil pytest tifffile
+          "$RUNNER_TEMP/test-env/bin/python" -m pip install numpy numba scikit-fmm matplotlib dask distributed rasterio psutil pytest tifffile scipy
           echo "$RUNNER_TEMP/test-env/bin" >> "$GITHUB_PATH"
+      - name: Install GnuCOBOL toolchain (COBOL nonlinear-filter kernel)
+        run: sudo apt-get update && sudo apt-get install -y gnucobol3
+      - name: Build COBOL kernel library
+        run: make -C cobol lib
       - name: Run test suite (GRASS-dependent smoke test auto-skips)
         run: python -m pytest tests -v
+      - name: Bench smoke run (backend-tagged rows + provenance)
+        run: |
+          python benchmarks/bench_nonlinear_filter.py --repeats 3 --output /tmp/bench.json
+          python - <<'PY'
+          import json
+          with open('/tmp/bench.json') as f:
+              doc = json.load(f)
+          backends = {row['backend'] for row in doc['rows']}
+          assert backends == {'python', 'cobol'}, backends
+          for row in doc['rows']:
+              assert row['median_s'] > 0, row
+              assert row['repeat_timings_s'], row
+          cobol_rows = [r for r in doc['rows'] if r['backend'] == 'cobol']
+          assert all(r['max_abs_dev_vs_python'] is not None for r in cobol_rows)
+          manifest = doc['manifest']
+          assert manifest['gnucobol_version'], manifest
+          assert manifest['fixture_sha256'], manifest
+          assert manifest['git_commit'], manifest
+          print('bench smoke ok:',
+                [(r['backend'], round(r['median_s'], 4)) for r in doc['rows']])
+          PY

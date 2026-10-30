@@ -6,6 +6,10 @@ from time import perf_counter
 from scipy.stats.mstats import mquantiles
 from pygeonet_rasterio import *
 from pygeonet_plot import *
+import os
+import ctypes
+from ctypes import c_float, c_int, POINTER
+from pathlib import Path
 
 # Gaussian Filter
 def simple_gaussian_smoothing(inputDemArray, kernelWidth,
@@ -48,6 +52,10 @@ def simple_gaussian_smoothing(inputDemArray, kernelWidth,
     return smoothedDemArray
 
 def anisodiff(img, niter, kappa, gamma, step=(1., 1.), option=2):
+    # COBOL backend takes precedence when requested (spec art_QEojt4gd C3);
+    # a missing kernel raises - never a silent fallback to NumPy (C2).
+    if os.environ.get('PYGEONET_COBOL') == '1':
+        return _cobol_anisodiff(img, niter, kappa, gamma, step, option)
     # initialize output array
     img = img.astype('float32')
     imgout = img.copy()
@@ -152,6 +160,71 @@ def main():
     # Writing the filtered DEM as a tif
     write_geotif_filteredDEM(filteredDemArray, Parameters.demDataFilePath,
                              Parameters.demFileName)
+
+
+# ---------------------------------------------------------------------------
+# COBOL backend for anisodiff (spec art_QEojt4gd D5): loads the
+# cobc-built shared object via ctypes. The kernel keeps COMP-1 (float32)
+# arithmetic and is a pure function of the buffers it receives.
+# ---------------------------------------------------------------------------
+MAX_COBOL_NPIX = 67108864  # 2^26; GnuCOBOL ODO record-size limit
+
+
+def _cobol_library_path():
+    return Path(__file__).resolve().parent / 'lib' / 'pygeonet_cobol.so'
+
+
+def _cobol_lib():
+    """Load lib/pygeonet_cobol.so; raise instead of falling back (no silent
+    backend change)."""
+    path = _cobol_library_path()
+    if not path.exists():
+        raise FileNotFoundError(
+            "PYGEONET_COBOL=1 but the COBOL backend is not built - "
+            "run `make -C cobol lib` (requires gnucobol3).")
+    lib = ctypes.CDLL(str(path))
+    lib.ge_anisodiff_cobol.restype = c_int
+    lib.ge_anisodiff_cobol.argtypes = [
+        POINTER(c_float), c_int, c_int, c_float, c_float, c_float, c_float,
+        c_int, c_int, POINTER(c_float)]
+    return lib
+
+
+def _cobol_anisodiff(img, niter, kappa, gamma, step, option):
+    """COBOL backend for anisodiff: identical math to the NumPy reference,
+    COMP-1 (float32) arithmetic, per-op rounding matched to the NumPy chain.
+    The input array is never modified; the kernel works on a private copy."""
+    if np.ndim(img) != 2:
+        raise ValueError("anisodiff expects a 2-D array")
+    if kappa == 0:
+        # the NumPy reference emits inf with runtime warnings here; the
+        # COBOL kernel rejects it outright (documented divergence)
+        raise ValueError("kappa must be non-zero for the COBOL backend")
+    src = np.array(img, dtype=np.float32, order='C', copy=True)
+    if src.size == 0:
+        return src  # empty arrays pass through unchanged, like the reference
+    if src.size > MAX_COBOL_NPIX:
+        raise ValueError(
+            f"input has {src.size} pixels; the COBOL backend supports at "
+            f"most {MAX_COBOL_NPIX} (GnuCOBOL table limit)")
+    out = np.empty_like(src)
+    rc = _cobol_lib().ge_anisodiff_cobol(
+        src.ctypes.data_as(POINTER(c_float)),
+        c_int(src.shape[0]), c_int(src.shape[1]),
+        c_float(kappa), c_float(gamma),
+        c_float(step[0]), c_float(step[1]),
+        c_int(option), c_int(niter),
+        out.ctypes.data_as(POINTER(c_float)))
+    if rc == 2:
+        raise ValueError("COBOL kernel rejected kappa=0")
+    if rc == 1:
+        raise MemoryError("COBOL kernel could not allocate scratch buffers")
+    if rc == 3:
+        raise ValueError("anisodiff input too large or empty for the COBOL backend")
+    if rc != 0:
+        raise RuntimeError(f"cobol anisodiff failed, rc={rc}")
+    return out
+
 
 if __name__ == '__main__':
     t0 = perf_counter()

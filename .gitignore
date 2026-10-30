@@ -7,3 +7,5 @@ project_pointer.cfg
 rust/geonet-kernels/target/
 wheelhouse/
 dist/
+# COBOL build artifacts (kernel and shim sources stay tracked).
+lib/
