@@ -88,6 +88,7 @@ _install_stub_modules()
 import numpy as np  # noqa: E402
 import skfmm  # noqa: E402
 import pygeonet_fast_marching as fmm  # noqa: E402
+import pygeonet_channel_head_definition as ch  # noqa: E402
 
 _MISSING = object()
 
@@ -220,6 +221,133 @@ class LocalCostMinimumTests(ModuleStateTestCase):
     def test_none_minimum_skips_clamp(self):
         result, _ = self.run_local_cost(None)
         self.assertAlmostEqual(result[0, 0], 0.3)
+
+
+def build_equal_size_skeleton(shape=(12, 12)):
+    """Four well-separated components of exactly 5 pixels each.
+
+    bins='auto' on the all-equal sizes [5, 5, 5, 5] gives edges
+    [4.5, 5.5], so the threshold (5.5) excludes every component -> zero
+    channel heads (the F4 crash at current HEAD).
+    """
+    skel = np.zeros(shape)
+    for coords in ([(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)],
+                   [(0, 8), (0, 9), (0, 10), (0, 11), (1, 11)],
+                   [(5, 0), (6, 0), (7, 0), (8, 0), (9, 0)],
+                   [(5, 8), (5, 9), (6, 9), (7, 9), (8, 9)]):
+        for (i, j) in coords:
+            skel[i, j] = 1
+    return skel
+
+
+def build_mixed_size_skeleton(shape=(12, 12)):
+    """One 40-pixel block plus three 3-pixel triominoes (healthy path).
+
+    bins='auto' on sizes [3, 3, 3, 40] gives threshold 21.5: only the
+    block qualifies. Its geodesic distances increase as i+j, so exactly
+    one pixel — (row 9, col 7) — has no same-label neighbor with a
+    strictly greater distance: the single channel head.
+    """
+    skel = np.zeros(shape)
+    block = [(i, j) for i in range(2, 10) for j in range(3, 8)]
+    for coords in (block,
+                   [(0, 0), (0, 1), (1, 0)],
+                   [(0, 9), (0, 10), (1, 9)],
+                   [(11, 0), (11, 1), (10, 0)]):
+        for (i, j) in coords:
+            skel[i, j] = 1
+    return skel
+
+
+def build_mixed_size_geodesic(shape=(12, 12)):
+    geodesic = np.full(shape, np.nan)
+    geodesic[2:10, 3:8] = np.add.outer(np.arange(2, 10), np.arange(3, 8))
+    return geodesic
+
+
+class ChannelHeadDegenerateTests(ModuleStateTestCase):
+    """F4: degenerate skeletons produce defined empty outputs."""
+
+    def setUp(self):
+        super().setUp()
+        self.shapefile_calls = []
+        self.raster_calls = []
+        self.set_attr(ch, 'defaults', types.SimpleNamespace(
+            doPlot=0, endPointSearchBoxSize=30))
+        self.set_attr(ch, 'Parameters', types.SimpleNamespace(
+            geonetResultsDir='/tmp/geonet-gn2-tests', demFileName='dem.tif',
+            pointFileName='points', pointshapefileName='channelHeads'))
+        self.set_attr(ch, 'write_drainage_nodes',
+                      lambda *args: self.shapefile_calls.append(args))
+        self.set_attr(ch, 'write_geotif_generic',
+                      lambda *args: self.raster_calls.append(args))
+
+    def test_all_equal_component_sizes_yield_empty_outputs(self):
+        skel = build_equal_size_skeleton()
+        xx, yy = ch.Channel_Head_Definition(
+            skel, np.full(skel.shape, np.nan))
+        self.assertEqual(xx.size, 0)
+        self.assertEqual(yy.size, 0)
+        # the empty shapefile and zero raster are still written
+        self.assertEqual(len(self.shapefile_calls), 1)
+        self.assertEqual(len(self.shapefile_calls[0][0]), 0)
+        self.assertEqual(len(self.shapefile_calls[0][1]), 0)
+        self.assertEqual(len(self.raster_calls), 1)
+        np.testing.assert_array_equal(self.raster_calls[0][0],
+                                      np.zeros(skel.shape))
+
+    def test_empty_skeleton_yields_empty_outputs(self):
+        skel = np.zeros((10, 10))
+        xx, yy = ch.Channel_Head_Definition(
+            skel, np.full(skel.shape, np.nan))
+        self.assertEqual(xx.size, 0)
+        self.assertEqual(yy.size, 0)
+        self.assertEqual(len(self.shapefile_calls), 1)
+        self.assertEqual(len(self.raster_calls), 1)
+        np.testing.assert_array_equal(self.raster_calls[0][0],
+                                      np.zeros(skel.shape))
+
+
+class ChannelHeadHealthyPathTests(ModuleStateTestCase):
+    """No behavior change on well-formed inputs: one head on the block."""
+
+    def test_mixed_size_skeleton_finds_exactly_the_block_head(self):
+        skel = build_mixed_size_skeleton()
+        shapefile_calls = []
+        raster_calls = []
+        self.set_attr(ch, 'defaults', types.SimpleNamespace(
+            doPlot=0, endPointSearchBoxSize=30))
+        self.set_attr(ch, 'Parameters', types.SimpleNamespace(
+            geonetResultsDir='/tmp/geonet-gn2-tests', demFileName='dem.tif',
+            pointFileName='points', pointshapefileName='channelHeads'))
+        self.set_attr(ch, 'write_drainage_nodes',
+                      lambda *args: shapefile_calls.append(args))
+        self.set_attr(ch, 'write_geotif_generic',
+                      lambda *args: raster_calls.append(args))
+        xx, yy = ch.Channel_Head_Definition(
+            skel, build_mixed_size_geodesic())
+        self.assertEqual(list(xx), [7])
+        self.assertEqual(list(yy), [9])
+        self.assertEqual(len(shapefile_calls), 1)
+        expected_raster = np.zeros(skel.shape)
+        expected_raster[9, 7] = 1
+        np.testing.assert_array_equal(raster_calls[0][0], expected_raster)
+
+
+class SkeletonSizeThresholdTests(unittest.TestCase):
+    """F4: the threshold helper's selection and degenerate fallback."""
+
+    def test_healthy_selection_picks_first_edge_above_quantile(self):
+        edges = np.array([12.0, 31.0, 50.0, 69.0, 88.0])
+        self.assertEqual(ch.select_skeleton_size_threshold(edges), 50.0)
+
+    def test_degenerate_equal_edges_fall_back_to_defined_threshold(self):
+        # review probe P3: the strict selection over equal edges is empty;
+        # the old inline code raised IndexError at edges[test_thresh[0]].
+        edges = np.array([4.0, 4.0])
+        threshold = ch.select_skeleton_size_threshold(edges)
+        self.assertTrue(np.isfinite(threshold))
+        self.assertEqual(threshold, 4.0)
 
 
 if __name__ == '__main__':
