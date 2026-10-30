@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from time import perf_counter 
 from pygeonet_rasterio import *
+from pygeonet_grass_session import init_grass_session, parse_grass_major_version
 
 
 def grass(filteredDemArray):
@@ -21,14 +22,29 @@ def grass(filteredDemArray):
         # TODO: this have to be checked, maybe unix way is good enough
         grass7bin = '/Applications/GRASS/GRASS-7.8.app/'
     elif sys.platform.startswith('linux'):
-        grass7bin = r'grass78'
+        # GRASS 8 installs the start script as 'grass'; older releases as 'grass78'.
+        grassbin_candidates = ['grass', 'grass84', 'grass78']
+        grass7bin = None
+        for candidate in grassbin_candidates:
+            probe = subprocess.Popen([candidate, '--config', 'path'],
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            probe.communicate()
+            if probe.returncode == 0:
+                grass7bin = candidate
+                break
+        if grass7bin is None:
+            raise OSError('No GRASS GIS start script found among: %s'
+                          % ', '.join(grassbin_candidates))
     else:
         raise OSError('Platform not configured')
     
-    # Query GRASS 7 itself for its GISBASE
+    # Query GRASS itself for its GISBASE
     startcmd = [grass7bin, '--config', 'path']
 
-    p = subprocess.Popen(startcmd, shell=True,
+    # shell=False on POSIX: with shell=True and a list, Python passes the
+    # '--config path' arguments to the shell as its own argv ($0/$1), so the
+    # GRASS launcher would run with no arguments and fall into GUI mode.
+    p = subprocess.Popen(startcmd, shell=sys.platform.startswith('win'),
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
     if p.returncode != 0:
@@ -48,12 +64,29 @@ def grass(filteredDemArray):
     else:
         gisbase = out.decode("utf-8").strip('\n\r')
 
+    # Detect the installed GRASS major version to pick the session-init
+    # signature (GRASS 7.8 and 8.x have incompatible gsetup.init calls).
+    versioncmd = [grass7bin, '--config', 'version']
+    vp = subprocess.Popen(versioncmd, shell=sys.platform.startswith('win'),
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    vout, verr = vp.communicate()
+    if vp.returncode != 0:
+        print('ERROR: %s' % verr, file=sys.stderr)
+        print("ERROR: Cannot determine the GRASS GIS version from (%s)" % versioncmd,
+              file=sys.stderr)
+        sys.exit(-1)
+    grass_major = parse_grass_major_version(vout.decode("utf-8"))
+    if grass_major not in (7, 8):
+        print('ERROR: GeoNet supports GRASS GIS 7.8 and 8.x; detected version %r'
+              % vout.decode("utf-8").strip(), file=sys.stderr)
+        sys.exit(-1)
+
     # Set environment variables
     os.environ['GISBASE'] = gisbase
     os.environ['PATH'] += os.pathsep + os.path.join(gisbase, 'extrabin')
     # add path to GRASS addons
     home = os.path.expanduser("~")
-    os.environ['PATH'] += os.pathsep + os.path.join(home, '.grass7', 'addons', 'scripts')
+    os.environ['PATH'] += os.pathsep + os.path.join(home, '.grass%d' % grass_major, 'addons', 'scripts')
 
     # Define GRASS-Python environment
     gpydir = os.path.join(gisbase, "etc", "python")
@@ -102,16 +135,24 @@ def grass(filteredDemArray):
     import grass.script.setup as gsetup
 
     # Launch session
-    gsetup.init(gisbase, gisdb, location, mapset)
+    geotiff = Parameters.pmGrassGISfileName
+    if grass_major == 8:
+        # GRASS 8 needs an existing location for session init, and its g.proj
+        # can no longer create one; create the geonet location from the
+        # georeferenced DEM instead (same outcome as the g.proj georef= call
+        # used for GRASS 7 below).
+        print('Making the geonet location')
+        g.create_location(gisdb, location, filename=geotiff)
+    init_grass_session(gsetup, gisbase, gisdb, location, mapset, grass_major)
 
     #originalGeotiff = os.path.join(Parameters.demDataFilePath, Parameters.demFileName)
-    geotiff = Parameters.pmGrassGISfileName
-    print('Making the geonet location')
-    g.run_command('g.proj', georef=geotiff, location = location)
+    if grass_major < 8:
+        print('Making the geonet location')
+        g.run_command('g.proj', georef=geotiff, location = location)
     print('Existing Mapsets after making locations:')
     g.read_command('g.mapsets', flags = 'l')
     print('Setting GRASSGIS environ')
-    gsetup.init(gisbase, gisdb, location, mapset)
+    init_grass_session(gsetup, gisbase, gisdb, location, mapset, grass_major)
     ##    g.gisenv()
 
     # Mapset
@@ -121,7 +162,7 @@ def grass(filteredDemArray):
     g.run_command('g.mapset', flags = 'c', mapset = mapset,\
                   location = location, dbase = gisdb)
     # gsetup initialization 
-    gsetup.init(gisbase, gisdb, location, mapset)
+    init_grass_session(gsetup, gisbase, gisdb, location, mapset, grass_major)
 
     # Manage extensions
     extensions = ['r.stream.basins', 'r.stream.watersheds']
