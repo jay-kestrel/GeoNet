@@ -19,11 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Fast-marching domain guard** ([#3](https://github.com/jay-kestrel/GeoNet/pull/3)): opaque scikit-fmm failures — including the "Negative discriminant in time marcher quadratic" abort on scikit-fmm < 2021.1.20 — are re-raised as `FastMarchingDomainError` with the catchment index and start point attached.
 - **Per-basin geodesic distance scatter restored** ([#4](https://github.com/jay-kestrel/GeoNet/pull/4)): PR #3's refactor left only the final basin's travel times in the full-raster `geodesicDistanceArray`; every basin is now scattered into the raster inside the solve loop again.
 - **Setup pre-flight and environment info** ([#5](https://github.com/jay-kestrel/GeoNet/pull/5)): `pygeonet_check_setup.py` validates the cfg (exactly as `pygeonet_prepare` resolves it at import), home directory, input DEM, and project directories, and probes third-party imports with `--imports`; `pygeonet_envinfo.py` prints a stdlib-only Python/git/dependency report for bug reports.
+- **Modern-Python compatibility for stages 4 and 6** ([#8](https://github.com/jay-kestrel/GeoNet/pull/8)): removed the unused `from time import clock` (stage 6 was unimportable on Python ≥ 3.8) and replaced the `np.warnings` call with the stdlib `warnings` module (stage 4 raised AttributeError on NumPy ≥ 2); a new import-sweep test imports every `pygeonet_*.py` module with heavy dependencies stubbed; deleted the Python-2-only `pygeonet_grass_py2.py` wrapper; dropped the leaked local `prefix:` line from `GeoNetEnv.yml`.
 
 ### Known issues (documented, not yet fixed)
 
-- Stage 6 (`pygeonet_channel_head_definition.py`) fails with `ImportError: cannot import name 'clock' from 'time'` on **Python ≥ 3.8** (`time.clock` was removed); run the full pipeline under the pinned conda env (Python 3.7.7).
-- Stage 4 (`pygeonet_skeleton_definition.py`) fails on **NumPy ≥ 2.0** (`np.warnings` was removed; the code calls `np.warnings.filterwarnings`).
 - `requirements.txt` is a conda win-64 `@EXPLICIT` export, not a pip file; `pip install -r requirements.txt` fails. See [SETUP.md](SETUP.md).
 
 ## Upstream baseline

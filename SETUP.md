@@ -15,17 +15,17 @@ No supported version is declared anywhere in the repo. Three versions are in pla
 |---|---|---|
 | `GeoNetEnv.yml` full-pipeline env | 3.7.7 | What the 2020-era pins were built and verified for |
 | CI (`ci.yml`) | 3.11 | Runs the **unit tests only** — never the pipeline stages |
-| Stages 1–5 as scripts | 3.7.x–3.7 | Unverified above 3.7 by the env; not exercised by CI |
-| Stage 6 (`pygeonet_channel_head_definition.py`) | **≥ 3.8 broken** | `from time import clock` raises `ImportError` (verified: `time.clock` was removed in Python 3.8) |
+| Stages 1–5 as scripts | 3.7.x–3.7 | Unverified above 3.7 for full runs; the CI import-sweep imports every stage module on 3.11 |
+| Stage 6 (`pygeonet_channel_head_definition.py`) | 3.7.x–3.11+ | Fixed by PR #8 — the unused `from time import clock` was removed; imports on any Python 3 |
 
 And one NumPy constraint:
 
 | Component | NumPy | Status |
 |---|---|---|
-| Stage 4 (`pygeonet_skeleton_definition.py`) | **≥ 2.0 broken** | `np.warnings.filterwarnings('ignore')` raises `AttributeError` (`np.warnings` removed in NumPy 2.0) |
-| CI test env | whatever `pip install numpy` yields (currently 2.x on Python 3.11) | Fine for the tests — they never call stage 4's thresholding path |
+| Stage 4 (`pygeonet_skeleton_definition.py`) | ≥ 2.0 | Fixed by PR #8 — the `np.warnings` call was replaced with the stdlib `warnings` module |
+| CI test env | whatever `pip install numpy` yields (currently 2.x on Python 3.11) | Fine for the tests, and the import-sweep exercises stage 4's module import |
 
-Both breakages are **known issues documented, not fixed** — they are in stage modules that CI does not execute. If you need a working end-to-end pipeline today, use Path A with the pinned Python 3.7.7.
+Both former breakages were **fixed by PR #8** and are regression-guarded by the CI import-sweep test. The pinned Python 3.7.7 env (Path A) remains the only verified end-to-end baseline.
 
 ## Path A — full pipeline (conda env + GRASS GIS)
 
@@ -61,7 +61,7 @@ Stage 3 looks for the GRASS start script:
 | Windows | `C:\OSGeo4W64\bin\grass78.bat` |
 | macOS | `/Applications/GRASS/GRASS-7.8.app/` |
 
-On Windows/macOS the path is hardcoded in `pygeonet_grass_py3.py` — adjust it there if your install differs. GRASS 7.6 works only with the legacy `pygeonet_grass_py2.py` (Python 2, unsupported).
+On Windows/macOS the path is hardcoded in `pygeonet_grass_py3.py` — adjust it there if your install differs. GRASS 7.6 is not supported (its legacy `pygeonet_grass_py2.py` wrapper was Python 2 code and has been removed).
 
 ### 3. Runtime requirements of stage 3
 

@@ -45,7 +45,7 @@ Stage 3 requires a GRASS GIS **system** install, separate from the conda env:
 
 - Download the official release from <https://grass.osgeo.org/download/>.
 - **GRASS 7.8 and 8.x are both supported** (8.x support was added by PR #1 via the version-dispatch in `pygeonet_grass_session.py`). Stage 3 probes `grass`, `grass84`, and `grass78` start scripts on Linux and detects the major version at runtime.
-- GRASS 7.6 is only supported by the legacy `pygeonet_grass_py2.py` wrapper, which is Python 2 code and **unsupported** — do not use it.
+- GRASS 7.6 is not supported — the legacy `pygeonet_grass_py2.py` wrapper has been removed (Python 2 code).
 
 ### Python floor — read before choosing an interpreter
 
@@ -55,9 +55,8 @@ There is no declared supported version; three different versions are in play:
 |---|---|---|
 | `GeoNetEnv.yml` (full pipeline) | 3.7.7 | The version the 2020-era pins were built for |
 | CI (`ci.yml` unit tests) | 3.11 | Tests only, not the pipeline stages |
-| Stage 6 | **broken on Python ≥ 3.8** | `pygeonet_channel_head_definition.py` has `from time import clock`, which raises `ImportError` on Python ≥ 3.8 |
 
-Stage 4 additionally breaks on **NumPy ≥ 2** (`np.warnings` was removed in NumPy 2.0; `pygeonet_skeleton_definition.py` calls `np.warnings.filterwarnings`). These are known issues documented in [ARCHITECTURE.md](ARCHITECTURE.md); for a working full pipeline use the conda env as pinned (Python 3.7.7).
+Stage 6 runs on any Python 3 again (the unused `from time import clock` was removed in PR #8), and stage 4 runs on NumPy ≥ 2 (the `np.warnings` call was replaced with the stdlib `warnings` module). An import-sweep test in CI imports every `pygeonet_*.py` module on Python 3.11 with heavy dependencies stubbed, so a modern-Python import regression fails the build. The conda env as pinned (Python 3.7.7) remains the only verified end-to-end pipeline baseline; further issues live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Configuration and Setup
 
@@ -139,7 +138,7 @@ Run the numbered stages in order from the repo root. Each stage reads and writes
    python pygeonet_grass_py3.py
    ```
 
-   Works with GRASS GIS 7.8 and 8.x (detected at runtime). The `python pygeonet_grass_py2.py` wrapper shown by older READMEs is Python 2 code and unsupported.
+   Works with GRASS GIS 7.8 and 8.x (detected at runtime). The `python pygeonet_grass_py2.py` wrapper shown by older READMEs has been removed (Python 2 code).
 
 4. Flow-accumulation and curvature skeleton:
 
@@ -158,7 +157,5 @@ Run the numbered stages in order from the repo root. Each stage reads and writes
    ```sh
    python pygeonet_channel_head_definition.py
    ```
-
-   **Known breakage:** this stage fails with `ImportError: cannot import name 'clock' from 'time'` on Python ≥ 3.8.
 
 > Note: further research still needs to be done on the optimal threshold for identifying channel heads. Preliminary studies found a quantile of 0.3 on the skeleton-component histogram (hardcoded in `pygeonet_channel_head_definition.py`) to be sufficient, but this estimate can definitely be improved using analytical methods.

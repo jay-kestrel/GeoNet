@@ -49,14 +49,12 @@ import pygeonet_...
 
 Rules this imposes on contributions:
 
-- **Never add a module-level heavy import to a module the tests import** without also adding a stub to the relevant test files. `check_setup`, `envinfo`, `grass_session`, and the fast-marching guard are import-safe today; keep new code that way when it is reasonable.
+- **Never add a module-level heavy import to a module the tests import** without also adding a stub to the relevant test files. `check_setup`, `envinfo`, `grass_session`, and the fast-marching guard are import-safe today; the import-sweep test (`tests/test_stage_module_imports.py`) enforces it for every `pygeonet_*.py` module with heavy dependencies stubbed — keep new code that way when it is reasonable.
 - **GRASS is always mocked.** Tests never require a GRASS install; `test_grass_session_init.py` stands in for `grass.script.setup` with a recording fake. Any new GRASS-coupled logic should be testable through an injected `gsetup`-like object, not by calling GRASS.
 - **Prefer testing pure helpers** (version parsing, cfg resolution, numba kernels on synthetic arrays) over end-to-end script runs.
 
 ## Known breakages — do not "fix" them casually, do not build on them
 
-- Stage 6 (`pygeonet_channel_head_definition.py`) imports `time.clock` — broken on Python ≥ 3.8. Tests avoid importing that module.
-- Stage 4 (`pygeonet_skeleton_definition.py`) uses `np.warnings` — broken on NumPy ≥ 2.0.
 - `pygeonet_vectorio.py`'s network/cross-section/bank-line writers use `xrange` — Python 2 remnants, uncalled by the pipeline.
 
 Fixing these is welcome as **ordinary code PRs** (they change runtime behavior, so they get real review and a regression test each) — just be aware the current test suite deliberately does not execute those paths.
